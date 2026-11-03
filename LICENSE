@@ -1,0 +1,28 @@
+PROPRIETARY SOFTWARE LICENSE AND INTELLECTUAL PROPERTY NOTICE
+
+Copyright (c) 2026 Rohidfkra777 (https://github.com/rohidfkra777)
+Email: rohidfkra.unp@gmail.com
+Role: Lead Software Architect & IoT Automation Engineer
+
+All rights reserved.
+
+1. OWNERSHIP & INTELLECTUAL PROPERTY
+This software, source code, graphical interfaces, hardware abstraction protocols,
+and associated documentation are the exclusive intellectual property of the developer
+(Rohidfkra777). Commercial usage, enterprise deployment, and production integration
+are subject to formal authorization and enterprise licensing agreements.
+
+2. RESTRICTIONS
+Permission is hereby granted to authorized workstation operators and quality assurance
+personnel to run and operate the compiled software for industrial provisioning purposes.
+The following actions are strictly prohibited without prior written consent from the developer:
+- Decompiling, disassembling, or extracting proprietary workstation binaries and algorithms.
+- Modifying, tampering with, or subverting role-based access control (RBAC).
+- Distributing unauthorized forks, clones, or derivative works.
+- Removing or altering copyright notices, author attributions, or license headers.
+
+3. DISCLAIMER OF WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHOR OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE USE OF THIS SOFTWARE.

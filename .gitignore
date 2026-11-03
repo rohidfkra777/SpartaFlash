@@ -1,0 +1,25 @@
+# Python & Build Artifacts
+__pycache__/
+*.py[cod]
+*.pyd
+*.spec
+build/
+dist/
+
+# Local databases and logs
+*.db
+*.log
+logs/
+database/*.db
+
+# Secrets & Local Environment
+.env
+*.alfa_vault
+*.vault
+local_config.json
+
+# IDE & OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
