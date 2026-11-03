@@ -1428,7 +1428,7 @@ class MqttMonitorView(QWidget):
         elif clean_topic.endswith("/upgrade"):
             self.cmb_pub_payload.addItems(["1 (Trigger OTA Upgrade)", "2 (Force Reinstall)"])
         elif clean_topic.endswith("/energyreset"):
-            self.cmb_pub_payload.addItems(["1 (Reset Today)", "3 (Reset Total kWh)", "0 (Reset All kWh)"])
+            self.cmb_pub_payload.addItems(["1 (Reset Today)", "0 (Reset All kWh)"])
         elif clean_topic.endswith("/wifireset"):
             self.cmb_pub_payload.addItems(["4 (Reset Wi-Fi -> Hotspot AP / SSID Baru)"])
         elif clean_topic.endswith("/reset"):
