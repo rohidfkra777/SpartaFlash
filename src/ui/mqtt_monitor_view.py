@@ -1428,7 +1428,7 @@ class MqttMonitorView(QWidget):
         elif clean_topic.endswith("/upgrade"):
             self.cmb_pub_payload.addItems(["1 (Trigger OTA Upgrade)", "2 (Force Reinstall)"])
         elif clean_topic.endswith("/energyreset"):
-            self.cmb_pub_payload.addItems(["1 (Reset Today)", "3 (Reset Total kWh)"])
+            self.cmb_pub_payload.addItems(["1 (Reset Today)", "3 (Reset Total kWh)", "0 (Reset All kWh)"])
         elif clean_topic.endswith("/wifireset"):
             self.cmb_pub_payload.addItems(["4 (Reset Wi-Fi -> Hotspot AP / SSID Baru)"])
         elif clean_topic.endswith("/reset"):
@@ -1449,6 +1449,20 @@ class MqttMonitorView(QWidget):
         """
         dev_name = device_name or (self.selected_device.device_name if self.selected_device else "Target Device")
 
+        # Smart Command Translation for Modern Tasmota (v9.5+)
+        # Translates legacy EnergyReset selections to native EnergyToday, EnergyTotal, or Backlog
+        if topic.strip().lower().endswith("/energyreset"):
+            prefix = topic[:topic.rfind("/")]
+            if "1" in payload.upper() or "TODAY" in payload.upper():
+                topic = f"{prefix}/EnergyToday"
+                payload = "0"
+            elif "3" in payload.upper() or "TOTAL" in payload.upper():
+                topic = f"{prefix}/EnergyTotal"
+                payload = "0"
+            else:
+                topic = f"{prefix}/Backlog"
+                payload = "EnergyTotal 0; EnergyToday 0; EnergyYesterday 0"
+
         clean_topic = topic.lower()
         clean_payload = payload.upper()
 
@@ -1461,7 +1475,7 @@ class MqttMonitorView(QWidget):
                 plan = dlg.get_execution_plan()
                 # 1. Reset kWh if requested
                 if plan.get("reset_kwh"):
-                    mqtt_service.publish_raw(f"AlfaEnergy/{cat}/{mac_key}/cmnd/EnergyReset3", "0")
+                    mqtt_service.publish_raw(f"AlfaEnergy/{cat}/{mac_key}/cmnd/Backlog", "EnergyTotal 0; EnergyToday 0; EnergyYesterday 0")
                 # 2. Clear LittleFS buffer if requested
                 if plan.get("clear_buffer"):
                     mqtt_service.publish_raw(f"AlfaEnergy/{cat}/{mac_key}/cmnd/BufferClear", "1")
@@ -1487,7 +1501,7 @@ class MqttMonitorView(QWidget):
         is_power_toggle = ("/power" in clean_topic and clean_payload in ("TOGGLE", "2"))
         is_restart = ("/restart" in clean_topic)
         is_clear_buffer = ("/bufferclear" in clean_topic)
-        is_reset = ("/energyreset" in clean_topic or "/reset" in clean_topic or is_clear_buffer)
+        is_reset = ("/energyreset" in clean_topic or "/energytotal" in clean_topic or "/energytoday" in clean_topic or "/reset" in clean_topic or is_clear_buffer or ("backlog" in clean_topic and "energy" in clean_payload.lower()))
         is_read_only = ("/status" in clean_topic or "/teleperiod" in clean_topic or "/bufferstatus" in clean_topic or clean_payload in ("STATUS", ""))
 
         # If read-only query and operator selected to skip confirmation
