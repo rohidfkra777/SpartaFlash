@@ -261,7 +261,7 @@ class MqttService(QObject):
             self._proactive_query_ip(matched_device)
 
         # Solution 1: Device hardware flash DeviceName / FriendlyName extraction
-        if "{" in payload_str and ("DeviceName" in payload_str or "FriendlyName" in payload_str):
+        if "{" in payload_str and ("DeviceName" in payload_str or "FriendlyName" in payload_str or "FriendlyName1" in payload_str):
             try:
                 j_obj = json.loads(payload_str)
                 d_name = None
@@ -271,6 +271,9 @@ class MqttService(QObject):
                         d_name = j_obj["Status"].get("DeviceName")
                     if not d_name and "StatusPRM" in j_obj and isinstance(j_obj["StatusPRM"], dict):
                         d_name = j_obj["StatusPRM"].get("DeviceName")
+                    if not d_name and "FriendlyName1" in j_obj:
+                        fn1 = j_obj["FriendlyName1"]
+                        d_name = fn1[0] if isinstance(fn1, list) and fn1 else (fn1 if isinstance(fn1, str) else None)
                     if not d_name and "FriendlyName" in j_obj:
                         fn = j_obj["FriendlyName"]
                         d_name = fn[0] if isinstance(fn, list) and fn else (fn if isinstance(fn, str) else None)
@@ -367,7 +370,7 @@ class MqttService(QObject):
             try:
                 data = json.loads(payload_str)
                 buf_info = data.get("Buffer", data)
-                if isinstance(buf_info, dict) and "UsedRecords" in buf_info:
+                if isinstance(buf_info, dict) and ("UsedRecords" in buf_info or "Records" in buf_info or "State" in buf_info):
                     try:
                         self.sig_device_event.emit(mac, "BufferStatus", buf_info)
                     except RuntimeError:
@@ -411,6 +414,16 @@ class MqttService(QObject):
                             p = phase_sub.get("Power", phase_sub.get("W"))
                         if e is None:
                             e = phase_sub.get("Total", phase_sub.get("kWh"))
+
+                # Guard against multi-phase array/list values (e.g. [220.1, 219.5, 221.0])
+                if isinstance(v, list) and v:
+                    v = v[0]
+                if isinstance(c, list) and c:
+                    c = sum(float(x) for x in c if x is not None)
+                if isinstance(p, list) and p:
+                    p = sum(float(x) for x in p if x is not None)
+                if isinstance(e, list) and e:
+                    e = sum(float(x) for x in e if x is not None)
 
                 if v is not None or c is not None or p is not None or e is not None:
                     db_manager.update_device_telemetry(

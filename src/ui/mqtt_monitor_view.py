@@ -832,10 +832,13 @@ class MqttMonitorView(QWidget):
                 pass
 
         elif event_name == "BufferStatus":
-            total_cap = payload.get("TotalCapacity", 12500)
-            used = payload.get("UsedRecords", 0)
-            max_days = payload.get("MaxDowntimeDays", 8.6)
-            self.lbl_cockpit_meta.setText(f"Buffer LittleFS: {used}/{total_cap} records (Kapasitas: {max_days:.1f} hari)")
+            total_cap = payload.get("MaxRecords", payload.get("TotalCapacity", 12500))
+            used = payload.get("Records", payload.get("UsedRecords", 0))
+            interval_sec = payload.get("IntervalSec", 60)
+            max_days = payload.get("MaxDowntimeDays", (total_cap * interval_sec) / 86400.0)
+            state = payload.get("State", "")
+            state_info = f" [{state}]" if state else ""
+            self.lbl_cockpit_meta.setText(f"Buffer LittleFS{state_info}: {used}/{total_cap} records (Kapasitas: {max_days:.1f} hari)")
 
     def _on_buffer_progress(self, mac: str, seq: int, total: int):
         """Smoothly updates sync progress badge in device table without rebuilding entire table."""
