@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QComboBox, QProgressBar,
     QFrame, QMessageBox
 )
-from PySide6.QtCore import Qt, Signal, QSize
+from PySide6.QtCore import Qt, Signal, QSize, QTimer
 from PySide6.QtGui import QPixmap, QPainter, QPainterPath
 
 from src.config.constants import (
@@ -61,6 +61,12 @@ class DashboardView(QWidget):
         DriverService.auto_ensure_drivers_installed(callback_on_installed=self.refresh_ports)
         self.update_permissions()
         auth_service.sig_auth_state_changed.connect(self.update_permissions)
+
+        # Background automated port monitor (auto-scan every 1.2s without manual refresh button)
+        self._port_scan_timer = QTimer(self)
+        self._port_scan_timer.setInterval(1200)
+        self._port_scan_timer.timeout.connect(self._auto_scan_ports)
+        self._port_scan_timer.start()
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -275,19 +281,14 @@ class DashboardView(QWidget):
         lbl_sec_port.setProperty("class", "card-title")
         left_layout.addWidget(lbl_sec_port)
 
-        port_ctrl_layout = QHBoxLayout()
         self.cmb_ports = QComboBox()
         self.cmb_ports.currentIndexChanged.connect(self._on_port_changed)
+        left_layout.addWidget(self.cmb_ports)
 
+        # Hidden programmatic button preserved for API & test backward compatibility
         self.btn_refresh_ports = QPushButton(" Scan Port")
-        self.btn_refresh_ports.setIcon(IconProvider.get_icon("refresh-cw", color="#38BDF8", size=14))
-        self.btn_refresh_ports.setIconSize(QSize(14, 14))
-        self.btn_refresh_ports.setProperty("class", "btn-secondary")
+        self.btn_refresh_ports.setVisible(False)
         self.btn_refresh_ports.clicked.connect(self.refresh_ports)
-
-        port_ctrl_layout.addWidget(self.cmb_ports, stretch=1)
-        port_ctrl_layout.addWidget(self.btn_refresh_ports)
-        left_layout.addLayout(port_ctrl_layout)
 
         self.lbl_port_diag = QLabel("No port detected. Connect USB-UART cable.")
         self.lbl_port_diag.setWordWrap(True)
@@ -591,27 +592,73 @@ class DashboardView(QWidget):
                     self.lbl_port_diag.setText(status_text)
                     self.lbl_port_diag.setStyleSheet("color: #94A3B8; font-size: 11px; font-weight: 500;")
 
-    def refresh_ports(self):
-        """Scans COM ports and populates the dropdown."""
-        self.cmb_ports.clear()
+    def _auto_scan_ports(self):
+        """Silently monitors serial ports in background. Updates dropdown only when changes occur."""
+        if self.worker and self.worker.isRunning():
+            return
+        self.refresh_ports(silent=True)
+
+    def refresh_ports(self, silent: bool = False):
+        """Scans COM ports and populates the dropdown smoothly without flicker or resetting active user choice."""
         ports = SerialService.list_ports()
+
+        # Handle empty ports state with no-flicker guard
         if not ports:
+            if self.cmb_ports.count() == 1 and self.cmb_ports.itemData(0) is None:
+                return
+            self.cmb_ports.blockSignals(True)
+            self.cmb_ports.clear()
             self.cmb_ports.addItem("No COM Ports Detected", None)
             self.lbl_port_diag.setText("No serial ports found. Connect USB-UART cable and verify drivers.")
             self.lbl_port_diag.setStyleSheet("color: #F87171; font-size: 11px;")
+            self.cmb_ports.blockSignals(False)
             self.btn_start.setEnabled(False)
             return
 
-        for p in ports:
+        # Extract currently listed port devices in combobox
+        current_devices = []
+        for i in range(self.cmb_ports.count()):
+            p_data = self.cmb_ports.itemData(i)
+            if p_data:
+                current_devices.append(p_data.device)
+
+        new_devices = [p.device for p in ports]
+        # If port list hasn't changed, skip reload to prevent UI flicker
+        if current_devices == new_devices:
+            return
+
+        selected_idx = self.cmb_ports.currentIndex()
+        selected_dev = self.cmb_ports.itemData(selected_idx).device if (selected_idx >= 0 and self.cmb_ports.itemData(selected_idx)) else None
+
+        self.cmb_ports.blockSignals(True)
+        self.cmb_ports.clear()
+
+        new_selected_idx = 0
+        newly_added = [p for p in ports if p.device not in current_devices]
+
+        for i, p in enumerate(ports):
             icon_marker = "⚡ " if p.is_common_esp_adapter else "🔌 "
             self.cmb_ports.addItem(f"{icon_marker}{p.display_name}", p)
+            if selected_dev and p.device == selected_dev:
+                new_selected_idx = i
 
-        activity_logger.log(
-            category=ActivityCategory.HARDWARE,
-            action="PORT_SCAN",
-            details=f"Detected {len(ports)} serial port(s): {', '.join(p.device for p in ports) if ports else 'None'}",
-            status=ActivityStatus.INFO
-        )
+        # If a new USB cable was just plugged in, auto-select it immediately!
+        if newly_added:
+            for i, p in enumerate(ports):
+                if p.device == newly_added[-1].device:
+                    new_selected_idx = i
+                    break
+
+        self.cmb_ports.setCurrentIndex(new_selected_idx)
+        self.cmb_ports.blockSignals(False)
+
+        if not silent:
+            activity_logger.log(
+                category=ActivityCategory.HARDWARE,
+                action="PORT_SCAN",
+                details=f"Detected {len(ports)} serial port(s): {', '.join(p.device for p in ports) if ports else 'None'}",
+                status=ActivityStatus.INFO
+            )
 
         self._on_port_changed()
         self._check_can_start()
