@@ -59,12 +59,15 @@ class AboutView(QWidget):
             header_row.addWidget(lbl_icon)
 
         title_box = QVBoxLayout()
-        title_box.setSpacing(2)
-        lbl_app = QLabel(APP_NAME)
-        lbl_app.setStyleSheet("color: #38BDF8; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;")
+        title_box.setSpacing(3)
+        title_box.setContentsMargins(0, 0, 0, 0)
+        lbl_app = QLabel()
+        lbl_app.setTextFormat(Qt.RichText)
+        lbl_app.setText("<span style='color: #38BDF8;'>SPARTA</span><span style='color: #EF4444; font-style: italic;'>FLASH</span>")
+        lbl_app.setStyleSheet("font-size: 20px; font-weight: 800; letter-spacing: 0.8px; font-family: 'Segoe UI', -apple-system, sans-serif;")
 
         lbl_sub = QLabel(APP_SUBTITLE)
-        lbl_sub.setStyleSheet("color: #94A3B8; font-size: 13px; font-weight: 500;")
+        lbl_sub.setStyleSheet("color: #94A3B8; font-size: 11.5px; font-weight: 500; font-family: 'Segoe UI', -apple-system, sans-serif;")
 
         title_box.addWidget(lbl_app)
         title_box.addWidget(lbl_sub)

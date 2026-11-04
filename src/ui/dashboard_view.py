@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QFrame, QMessageBox
 )
 from PySide6.QtCore import Qt, Signal, QSize
+from PySide6.QtGui import QPixmap, QPainter, QPainterPath
 
 from src.config.constants import (
     PRODUCT_PLUG, PRODUCT_CT, PRODUCT_CONFIGS,
@@ -51,6 +52,7 @@ class DashboardView(QWidget):
         self.custom_firmware_path: Optional[Path] = None
 
         self._init_ui()
+        self._update_product_hero_image()
         self.refresh_ports()
         self.update_firmware_status()
         self.refresh_stats()
@@ -65,31 +67,23 @@ class DashboardView(QWidget):
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(14)
 
-        # 1. Top Bar: Title & Production KPI Summary
+        # 1. Top Bar: Clean Title & Pipeline Subtitle
         top_layout = QHBoxLayout()
         top_layout.setSpacing(16)
 
         title_box = QVBoxLayout()
-        title_box.setSpacing(2)
-        lbl_dash_title = QLabel("PRODUCTION WORKSTATION")
-        lbl_dash_title.setStyleSheet("color: #38BDF8; font-size: 20px; font-weight: 800; letter-spacing: 0.5px;")
+        title_box.setSpacing(3)
+        title_box.setContentsMargins(0, 0, 0, 0)
+        lbl_dash_title = QLabel("Station Flasher")
+        lbl_dash_title.setStyleSheet("color: #38BDF8; font-size: 18px; font-weight: 800; letter-spacing: 0.8px; font-family: 'Segoe UI', -apple-system, sans-serif;")
         lbl_dash_sub = QLabel("Automated Firmware Flashing & Hardware Verification Pipeline")
-        lbl_dash_sub.setStyleSheet("color: #94A3B8; font-size: 12px; font-weight: 500;")
+        lbl_dash_sub.setStyleSheet("color: #94A3B8; font-size: 11.5px; font-weight: 500; font-family: 'Segoe UI', -apple-system, sans-serif;")
         title_box.addWidget(lbl_dash_title)
         title_box.addWidget(lbl_dash_sub)
+        title_box.addStretch()
 
         top_layout.addLayout(title_box)
         top_layout.addStretch()
-
-        # KPI Stat Cards
-        self.card_total = StatCard("Total Units", "0", "#F8FAFC")
-        self.card_pass = StatCard("Passed (PASS)", "0", "#10B981")
-        self.card_fail = StatCard("Failed (FAIL)", "0", "#EF4444")
-        self.card_rate = StatCard("Pass Rate", "0.0%", "#38BDF8")
-
-        for card in [self.card_total, self.card_pass, self.card_fail, self.card_rate]:
-            card.setMinimumWidth(125)
-            top_layout.addWidget(card)
 
         main_layout.addLayout(top_layout)
 
@@ -100,14 +94,14 @@ class DashboardView(QWidget):
         # LEFT COLUMN: Configuration, Port, Firmware, Start Action
         left_panel = QFrame()
         left_panel.setProperty("class", "card")
-        left_panel.setFixedWidth(400)
+        left_panel.setFixedWidth(380)
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(14, 14, 14, 14)
         left_layout.setSpacing(10)
 
         # A. Section 1: TARGET PRODUK PRODUKSI (AUTO-LOCKED)
         sec_prod_header = QHBoxLayout()
-        lbl_sec_prod = QLabel("1. TARGET PRODUK PRODUKSI")
+        lbl_sec_prod = QLabel("1. TARGET PRODUK")
         lbl_sec_prod.setProperty("class", "card-title")
         sec_prod_header.addWidget(lbl_sec_prod)
 
@@ -132,8 +126,8 @@ class DashboardView(QWidget):
         icon_plug = IconProvider.get_icon("zap", color="#38BDF8", size=22)
         icon_ct = IconProvider.get_icon("cpu", color="#F59E0B", size=22)
 
-        self.cmb_product.addItem(icon_plug, "  AlfaEnergy Smart Plug (Plug)", PRODUCT_PLUG)
-        self.cmb_product.addItem(icon_ct, "  AlfaEnergy Current Transformer (CT)", PRODUCT_CT)
+        self.cmb_product.addItem(icon_plug, "  Sparta Smart Plug", PRODUCT_PLUG)
+        self.cmb_product.addItem(icon_ct, "  Sparta Smart CT", PRODUCT_CT)
         self.cmb_product.currentIndexChanged.connect(self._on_product_changed)
         left_layout.addWidget(self.cmb_product)
 
@@ -176,53 +170,103 @@ class DashboardView(QWidget):
 
         left_layout.addLayout(cloud_sync_row)
 
-        # Profile Auto-Lock Box (Zero-Config Firmware & Target Binding)
+        # Product Hero Preview Banner (Concept 2)
+        self.frame_hero_prod = QFrame()
+        self.frame_hero_prod.setObjectName("frameHeroProd")
+        self.frame_hero_prod.setStyleSheet("""
+            QFrame#frameHeroProd {
+                background-color: #0B1120;
+                border: 1px solid #1E293B;
+                border-radius: 8px;
+            }
+        """)
+        hero_layout = QVBoxLayout(self.frame_hero_prod)
+        hero_layout.setContentsMargins(6, 6, 6, 6)
+        hero_layout.setSpacing(0)
+
+        self.lbl_hero_img = QLabel()
+        self.lbl_hero_img.setAlignment(Qt.AlignCenter)
+        self.lbl_hero_img.setFixedHeight(130)
+        self.lbl_hero_img.setStyleSheet("background-color: transparent;")
+        hero_layout.addWidget(self.lbl_hero_img)
+
+        left_layout.addWidget(self.frame_hero_prod)
+
+        # Technical Spec Grid: Profile & Firmware Integrity (2-Column Key-Value)
         self.frame_fw = QFrame()
         self.frame_fw.setObjectName("frameFwAutoLock")
         self.frame_fw.setStyleSheet("""
             QFrame#frameFwAutoLock {
                 background-color: #0F172A;
-                border: 1px solid #334155;
+                border: 1px solid #1E293B;
                 border-radius: 8px;
             }
         """)
         fw_box = QVBoxLayout(self.frame_fw)
-        fw_box.setSpacing(4)
-        fw_box.setContentsMargins(10, 8, 10, 8)
+        fw_box.setSpacing(6)
+        fw_box.setContentsMargins(12, 10, 12, 10)
 
-        lbl_autolock_header = QLabel("🔒 PROFIL RESMI TERKUNCI (AUTO-BINDING)")
-        lbl_autolock_header.setStyleSheet("color: #38BDF8; font-size: 11px; font-weight: 800; letter-spacing: 0.3px;")
-        fw_box.addWidget(lbl_autolock_header)
+        # Header Row: Clean Title + Official Status Badge
+        header_row = QHBoxLayout()
+        header_row.setContentsMargins(0, 0, 0, 2)
+        lbl_spec_title = QLabel("DEVICE PROFILE & FIRMWARE SPEC")
+        lbl_spec_title.setStyleSheet("color: #38BDF8; font-size: 11px; font-weight: 800; letter-spacing: 0.5px;")
+        header_row.addWidget(lbl_spec_title)
+        header_row.addStretch()
+        fw_box.addLayout(header_row)
 
-        self.lbl_fw_name = QLabel("Firmware: Memuat...")
-        self.lbl_fw_name.setWordWrap(True)
-        self.lbl_fw_name.setStyleSheet("color: #F8FAFC; font-weight: 700; font-size: 12px;")
+        # Separator line
+        spec_sep = QFrame()
+        spec_sep.setFrameShape(QFrame.HLine)
+        spec_sep.setStyleSheet("background-color: #1E293B; max-height: 1px; border: none;")
+        fw_box.addWidget(spec_sep)
 
-        self.lbl_fw_chip = QLabel("Target Chip: -")
-        self.lbl_fw_chip.setWordWrap(True)
-        self.lbl_fw_chip.setStyleSheet("color: #E2E8F0; font-size: 11px; font-weight: 600;")
-        
-        self.lbl_fw_hash = QLabel("SHA-256: -")
-        self.lbl_fw_hash.setWordWrap(True)
-        self.lbl_fw_hash.setStyleSheet("color: #94A3B8; font-size: 10.5px; font-family: monospace;")
-        
-        self.lbl_fw_source = QLabel("Sumber: Cloud CDN (GitHub Pages)")
-        self.lbl_fw_source.setWordWrap(True)
-        self.lbl_fw_source.setStyleSheet("color: #38BDF8; font-size: 10.5px; font-weight: 600;")
+        # 2-Column Key-Value Grid
+        grid_spec = QGridLayout()
+        grid_spec.setHorizontalSpacing(10)
+        grid_spec.setVerticalSpacing(5)
+        grid_spec.setContentsMargins(0, 2, 0, 2)
 
-        self.lbl_fw_status = QLabel("Status: -")
-        self.lbl_fw_status.setWordWrap(True)
-        self.lbl_power_spec = QLabel("Spesifikasi Daya: -")
-        self.lbl_power_spec.setWordWrap(True)
-        self.lbl_power_spec.setStyleSheet("color: #FCD34D; font-size: 11px; font-weight: 700;")
+        def make_spec_key(text: str) -> QLabel:
+            k = QLabel(text)
+            k.setStyleSheet("color: #94A3B8; font-size: 11px; font-weight: 600;")
+            k.setFixedWidth(100)
+            return k
 
-        fw_box.addWidget(self.lbl_fw_name)
-        fw_box.addWidget(self.lbl_fw_chip)
-        fw_box.addWidget(self.lbl_power_spec)
-        fw_box.addWidget(self.lbl_fw_hash)
-        fw_box.addWidget(self.lbl_fw_source)
-        fw_box.addWidget(self.lbl_fw_status)
+        # Row 0: Target Chipset
+        grid_spec.addWidget(make_spec_key("Chip Target"), 0, 0)
+        self.lbl_fw_chip = QLabel("-")
+        self.lbl_fw_chip.setStyleSheet("color: #F8FAFC; font-size: 11px; font-weight: 600;")
+        grid_spec.addWidget(self.lbl_fw_chip, 0, 1)
 
+        # Row 1: Power & Wiring
+        grid_spec.addWidget(make_spec_key("Tegangan/Logic"), 1, 0)
+        self.lbl_power_spec = QLabel("-")
+        self.lbl_power_spec.setStyleSheet("color: #FCD34D; font-size: 11px; font-weight: 600;")
+        grid_spec.addWidget(self.lbl_power_spec, 1, 1)
+
+        # Row 2: Firmware Image
+        grid_spec.addWidget(make_spec_key("Firmware"), 2, 0)
+        self.lbl_fw_name = QLabel("Memuat...")
+        self.lbl_fw_name.setStyleSheet("color: #F8FAFC; font-size: 11px; font-weight: 600;")
+        grid_spec.addWidget(self.lbl_fw_name, 2, 1)
+
+        # Row 3: Checksum
+        grid_spec.addWidget(make_spec_key("Integritas"), 3, 0)
+        self.lbl_fw_hash = QLabel("-")
+        self.lbl_fw_hash.setStyleSheet("color: #94A3B8; font-size: 10.5px; font-family: 'Consolas', monospace;")
+        grid_spec.addWidget(self.lbl_fw_hash, 3, 1)
+
+        # Row 4: Cloud Sync
+        grid_spec.addWidget(make_spec_key("Sinkronisasi"), 4, 0)
+        self.lbl_fw_source = QLabel("-")
+        self.lbl_fw_source.setStyleSheet("color: #38BDF8; font-size: 10.5px; font-weight: 500;")
+        grid_spec.addWidget(self.lbl_fw_source, 4, 1)
+
+        self.lbl_fw_status = QLabel("")
+        self.lbl_fw_status.setVisible(False)
+
+        fw_box.addLayout(grid_spec)
         left_layout.addWidget(self.frame_fw)
         left_layout.addSpacing(4)
 
@@ -295,9 +339,15 @@ class DashboardView(QWidget):
         right_panel = QVBoxLayout()
         right_panel.setSpacing(12)
 
-        # Big Visual Status Banner
+        # Option B: 5 Side-by-Side Cards (System Ready + 4 StatCards)
+        cards_row = QHBoxLayout()
+        cards_row.setSpacing(8)
+
+        # Card 1: System Ready Banner Card
         self.status_banner = QFrame()
         self.status_banner.setObjectName("statusBannerFrame")
+        self.status_banner.setFixedHeight(72)
+        self.status_banner.minimumSizeHint = lambda: QSize(140, 50)
         self.status_banner.setStyleSheet("""
             QFrame#statusBannerFrame {
                 background-color: #1E293B;
@@ -306,27 +356,43 @@ class DashboardView(QWidget):
             }
         """)
         banner_layout = QHBoxLayout(self.status_banner)
-        banner_layout.setContentsMargins(16, 12, 16, 12)
+        banner_layout.setContentsMargins(12, 6, 12, 6)
+        banner_layout.setSpacing(8)
 
         status_text_box = QVBoxLayout()
+        status_text_box.setSpacing(1)
+        status_text_box.setAlignment(Qt.AlignVCenter)
+
         self.lbl_current_stage = QLabel("SYSTEM READY")
-        self.lbl_current_stage.setStyleSheet("color: #F8FAFC; font-size: 15px; font-weight: 700; letter-spacing: 0.3px;")
-        self.lbl_stage_desc = QLabel("Select port, verify firmware, and press Start Flashing.")
-        self.lbl_stage_desc.setWordWrap(True)
-        self.lbl_stage_desc.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        self.lbl_current_stage.setStyleSheet("color: #F8FAFC; font-size: 13px; font-weight: 800; letter-spacing: 0.3px;")
+        self.lbl_stage_desc = QLabel("Pilih port & tekan Start Flashing")
+        self.lbl_stage_desc.setStyleSheet("color: #94A3B8; font-size: 11px;")
+        self.lbl_stage_desc.setWordWrap(False)
         status_text_box.addWidget(self.lbl_current_stage)
         status_text_box.addWidget(self.lbl_stage_desc)
 
-        banner_layout.addLayout(status_text_box)
-        banner_layout.addStretch()
+        banner_layout.addLayout(status_text_box, stretch=1)
 
         self.lbl_status_badge = QLabel("READY")
         self.lbl_status_badge.setProperty("class", "badge-ready")
-        self.lbl_status_badge.setMinimumWidth(110)
+        self.lbl_status_badge.setFixedHeight(26)
+        self.lbl_status_badge.setMinimumWidth(72)
         self.lbl_status_badge.setAlignment(Qt.AlignCenter)
         banner_layout.addWidget(self.lbl_status_badge)
 
-        right_panel.addWidget(self.status_banner)
+        cards_row.addWidget(self.status_banner, stretch=5)
+
+        # Cards 2-5: KPI Stat Cards (aligned in exact same row)
+        self.card_total = StatCard("TOTAL UNIT", "0", "#F8FAFC")
+        self.card_pass = StatCard("PASSED", "0", "#10B981")
+        self.card_fail = StatCard("FAILED", "0", "#EF4444")
+        self.card_rate = StatCard("PASS RATE", "0.0%", "#38BDF8")
+
+        for card in [self.card_total, self.card_pass, self.card_fail, self.card_rate]:
+            card.setFixedHeight(72)
+            cards_row.addWidget(card, stretch=2)
+
+        right_panel.addLayout(cards_row)
 
         # Progress Bar
         self.progress_bar = QProgressBar()
@@ -342,8 +408,44 @@ class DashboardView(QWidget):
         work_layout.addLayout(right_panel, stretch=1)
         main_layout.addLayout(work_layout, stretch=1)
 
+    def _update_product_hero_image(self):
+        """Updates the product hero banner image according to selected category."""
+        category = self.cmb_product.currentData()
+        assets_dir = Path(__file__).resolve().parent.parent.parent / "assets"
+        
+        if category == PRODUCT_CT or "ct" in str(category).lower():
+            img_path = assets_dir / "CT.png"
+            if not img_path.exists():
+                img_path = assets_dir / "CT.jpg"
+        else:
+            img_path = assets_dir / "Plug.png"
+            if not img_path.exists():
+                img_path = assets_dir / "Plug.jpg"
+
+        if img_path.exists():
+            target_w = 340
+            target_h = 130
+            pix = QPixmap(str(img_path))
+            scaled = pix.scaled(target_w, target_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+            out = QPixmap(target_w, target_h)
+            out.fill(Qt.transparent)
+            painter = QPainter(out)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform)
+            x = (target_w - scaled.width()) // 2
+            y = (target_h - scaled.height()) // 2
+            painter.drawPixmap(x, y, scaled)
+            painter.end()
+
+            self.lbl_hero_img.setPixmap(out)
+        else:
+            self.lbl_hero_img.setText(f"[Gambar Produk: {img_path.name}]")
+            self.lbl_hero_img.setStyleSheet("color: #64748B; font-size: 11px;")
+
     def _on_product_changed(self):
         self.custom_firmware_path = None
+        self._update_product_hero_image()
         self.update_firmware_status()
         self._check_cloud_updates_silently()
 
@@ -478,11 +580,16 @@ class DashboardView(QWidget):
         if idx >= 0:
             port_info: SerialPortInfo = self.cmb_ports.itemData(idx)
             if port_info:
-                diag = f"Device: {port_info.device} ({port_info.description})\nAdapter: {port_info.adapter_chip_type}"
+                clean_desc = port_info.description.replace(f"({port_info.device})", "").replace(port_info.device, "").strip(" -:")
+                adapter_name = port_info.adapter_chip_type if port_info.adapter_chip_type != "Generic Serial Port" else (clean_desc or "Generic Serial Port")
                 if port_info.is_common_esp_adapter:
-                    diag += " [Verified ESP Programmer Adapter]"
-                self.lbl_port_diag.setText(diag)
-                self.lbl_port_diag.setStyleSheet("color: #38BDF8; font-size: 11px;")
+                    status_text = f"Hardware: {adapter_name}  •  Status: Programmer Siap"
+                    self.lbl_port_diag.setText(status_text)
+                    self.lbl_port_diag.setStyleSheet("color: #34D399; font-size: 11px; font-weight: 500;")
+                else:
+                    status_text = f"Hardware: {adapter_name}  •  Baudrate: 921,600 bps"
+                    self.lbl_port_diag.setText(status_text)
+                    self.lbl_port_diag.setStyleSheet("color: #94A3B8; font-size: 11px; font-weight: 500;")
 
     def refresh_ports(self):
         """Scans COM ports and populates the dropdown."""
@@ -521,36 +628,37 @@ class DashboardView(QWidget):
 
         # Mask proprietary firmware filename for corporate IP security
         if "plug" in str(category).lower() or "plug" in str(info.file_name).lower():
-            display_fw = "Alfa Smart Plug (Protected)"
+            display_fw = "Sparta Smart Plug (Protected)"
         elif "ct" in str(category).lower() or "ct" in str(info.file_name).lower():
-            display_fw = "Alfa Energy CT (Protected)"
+            display_fw = "Sparta Smart CT (Protected)"
         else:
             display_fw = f"{config.get('display_name', 'Official System Image')} (Protected)"
 
-        self.lbl_fw_name.setText(f"Firmware: {display_fw}")
-        self.lbl_fw_chip.setText(f"Target Chip: {target_chip} (Validasi Otomatis)")
+        self.lbl_fw_name.setText(display_fw)
+        self.lbl_fw_chip.setText(f"{target_chip}  •  Auto-Detect")
         wiring = config.get("wiring_guide", "Power: 3.3V DC | Logic: 3.3V")
-        self.lbl_power_spec.setText(f"⚡ {wiring}")
+        clean_wiring = wiring.replace("Power: ", "").replace("Logic: ", "").replace("|", "•")
+        self.lbl_power_spec.setText(clean_wiring)
 
         # Update firmware source label with metadata
         meta = CloudFirmwareService.load_metadata()
         synced_info = meta.get("files", {}).get(path.name.replace(".alfa_enc", ".bin"))
         if synced_info:
             synced_time = synced_info.get("synced_at", "")[:16].replace("T", " ")
-            self.lbl_fw_source.setText(f"🌐 Cloud CDN (Terenkripsi • Sync: {synced_time})")
+            self.lbl_fw_source.setText(f"Cloud CDN  •  Sync: {synced_time}")
         elif SecurityVault.is_encrypted_vault_file(path):
-            self.lbl_fw_source.setText("🌐 Security Vault (.alfa_enc Terenkripsi)")
+            self.lbl_fw_source.setText("Security Vault (Terenkripsi)")
         else:
-            self.lbl_fw_source.setText("📁 Biner Firmware Lokal")
+            self.lbl_fw_source.setText("Biner Firmware Lokal (Terenkripsi)")
 
         if info.exists and info.is_valid:
-            self.lbl_fw_hash.setText(f"SHA-256: {info.sha256_hash[:18]}... (Valid)")
+            self.lbl_fw_hash.setText(f"SHA-256: {info.sha256_hash[:16]}...  (Valid)")
+            self.lbl_fw_hash.setStyleSheet("color: #94A3B8; font-size: 10.5px; font-family: 'Consolas', monospace;")
             self.lbl_fw_status.setText("✓ Biner Resmi Terverifikasi")
-            self.lbl_fw_status.setStyleSheet("color: #10B981; font-size: 11px; font-weight: 700;")
         else:
             self.lbl_fw_hash.setText("SHA-256: [File Tidak Ditemukan]")
+            self.lbl_fw_hash.setStyleSheet("color: #EF4444; font-size: 10.5px; font-family: 'Consolas', monospace;")
             self.lbl_fw_status.setText(f"✗ {info.validation_message}")
-            self.lbl_fw_status.setStyleSheet("color: #EF4444; font-size: 11px; font-weight: 700;")
 
         self._check_can_start()
 
@@ -650,7 +758,9 @@ class DashboardView(QWidget):
         self.lbl_status_badge.style().polish(self.lbl_status_badge)
 
         self.lbl_current_stage.setText("INITIALIZING PIPELINE...")
+        self.lbl_current_stage.setStyleSheet("color: #38BDF8; font-size: 13.5px; font-weight: 800; letter-spacing: 0.3px;")
         self.lbl_stage_desc.setText(f"Processing {category} on {port_name}...")
+        self.lbl_stage_desc.setToolTip(f"Memproses {category} pada port {port_name}")
         self.progress_bar.setValue(5)
         self.progress_bar.setFormat("%p% - Initializing...")
         self.terminal.clear_log()
@@ -691,14 +801,19 @@ class DashboardView(QWidget):
     def _on_worker_progress(self, percentage: int, stage: str, message: str, is_terminal: bool):
         self.progress_bar.setValue(percentage)
         self.progress_bar.setFormat(f"{percentage}% - {message}")
-        self.lbl_stage_desc.setText(message)
+        clean_msg = message.strip().split('\n')[0][:50]
+        self.lbl_stage_desc.setText(clean_msg)
+        self.lbl_stage_desc.setToolTip(message)
 
         if stage == STATUS_ERASING:
             self.lbl_current_stage.setText("ERASING FLASH MEMORY")
+            self.lbl_current_stage.setStyleSheet("color: #38BDF8; font-size: 13.5px; font-weight: 800; letter-spacing: 0.3px;")
         elif stage == STATUS_FLASHING:
             self.lbl_current_stage.setText("FLASHING FIRMWARE")
+            self.lbl_current_stage.setStyleSheet("color: #38BDF8; font-size: 13.5px; font-weight: 800; letter-spacing: 0.3px;")
         elif stage == STATUS_VERIFYING:
             self.lbl_current_stage.setText("VERIFYING CHECKSUM")
+            self.lbl_current_stage.setStyleSheet("color: #38BDF8; font-size: 13.5px; font-weight: 800; letter-spacing: 0.3px;")
 
     def _on_worker_finished(self, record: ProductionRecord):
         self._reset_controls()
@@ -708,43 +823,57 @@ class DashboardView(QWidget):
             sound_service.play_success()
             self.lbl_status_badge.setText("PASS")
             self.lbl_status_badge.setProperty("class", "badge-pass")
-            self.lbl_current_stage.setText("FLASHING SUCCESSFUL (PASS)")
+            self.lbl_current_stage.setText("FLASHING SUCCESSFUL")
+            self.lbl_current_stage.setStyleSheet("color: #34D399; font-size: 13.5px; font-weight: 800; letter-spacing: 0.3px;")
             self.lbl_stage_desc.setText(
-                f"Device MAC: {record.mac_address or 'N/A'} | Chip: {record.target_chip} | Time: {record.duration_seconds}s | Auto-registered to Device Monitor"
+                f"MAC: {record.mac_address or 'N/A'} • Chip: {record.target_chip} • {record.duration_seconds}s"
+            )
+            self.lbl_stage_desc.setToolTip(
+                f"Perangkat: {getattr(record, 'product_name', None) or getattr(record, 'product_category', 'Device')}\nMAC: {record.mac_address or 'N/A'}\nChip: {record.target_chip}\nWaktu: {record.duration_seconds}s\nStatus: Otomatis terdaftar ke Device Monitor"
             )
             self.progress_bar.setValue(100)
             self.progress_bar.setFormat("100% - PASS")
             activity_logger.log(
                 category=ActivityCategory.FLASHING,
                 action="FLASH_PASS",
-                details=f"Device MAC: {record.mac_address or 'N/A'}, Product: {record.product_name}, Chip: {record.target_chip}, Duration: {record.duration_seconds}s",
+                details=f"Device MAC: {record.mac_address or 'N/A'}, Product: {getattr(record, 'product_name', None) or getattr(record, 'product_category', 'Device')}, Chip: {record.target_chip}, Duration: {record.duration_seconds}s",
                 status=ActivityStatus.SUCCESS
             )
 
         elif record.result == STATUS_CANCELLED:
             sound_service.play_warning()
-            self.lbl_status_badge.setText("CANCELLED")
+            self.lbl_status_badge.setText("CANCEL")
             self.lbl_status_badge.setProperty("class", "badge-warn")
             self.lbl_current_stage.setText("FLASHING CANCELLED")
-            self.lbl_stage_desc.setText("Process was aborted by operator.")
+            self.lbl_current_stage.setStyleSheet("color: #FBBF24; font-size: 13.5px; font-weight: 800; letter-spacing: 0.3px;")
+            self.lbl_stage_desc.setText("Proses dibatalkan oleh operator.")
+            self.lbl_stage_desc.setToolTip("")
             self.progress_bar.setFormat("Cancelled")
             activity_logger.log(
                 category=ActivityCategory.FLASHING,
                 action="FLASH_CANCELLED",
-                details=f"Flashing aborted by operator for {record.product_name}",
+                details=f"Flashing aborted by operator for {getattr(record, 'product_name', None) or getattr(record, 'product_category', 'Device')}",
                 status=ActivityStatus.WARNING
             )
         else:
             sound_service.play_failure()
             self.lbl_status_badge.setText("FAIL")
             self.lbl_status_badge.setProperty("class", "badge-fail")
-            self.lbl_current_stage.setText("FLASHING FAILED (FAIL)")
-            self.lbl_stage_desc.setText(f"Error: {record.error_message or 'Unknown error'}")
+            self.lbl_current_stage.setText("FLASHING FAILED")
+            self.lbl_current_stage.setStyleSheet("color: #F87171; font-size: 13.5px; font-weight: 800; letter-spacing: 0.3px;")
+            
+            raw_err = (record.error_message or "Unknown error").strip()
+            first_line = raw_err.split('\n')[0].replace("A fatal error occurred: ", "").replace("Error: ", "").strip()
+            if len(first_line) > 46:
+                first_line = first_line[:43] + "..."
+            port_suffix = f" ({record.serial_port})" if record.serial_port else ""
+            self.lbl_stage_desc.setText(f"Error: {first_line}{port_suffix}")
+            self.lbl_stage_desc.setToolTip(raw_err)
             self.progress_bar.setFormat("FAIL")
             activity_logger.log(
                 category=ActivityCategory.FLASHING,
                 action="FLASH_FAIL",
-                details=f"Failed flashing {record.product_name}: {record.error_message or 'Unknown error'}",
+                details=f"Failed flashing {getattr(record, 'product_name', None) or getattr(record, 'product_category', 'Device')}: {record.error_message or 'Unknown error'}",
                 status=ActivityStatus.ERROR
             )
 
@@ -759,6 +888,11 @@ class DashboardView(QWidget):
         self.lbl_status_badge.setProperty("class", "badge-fail")
         self.lbl_status_badge.style().unpolish(self.lbl_status_badge)
         self.lbl_status_badge.style().polish(self.lbl_status_badge)
+        self.lbl_current_stage.setText("FLASHING FAILED")
+        self.lbl_current_stage.setStyleSheet("color: #F87171; font-size: 13.5px; font-weight: 800; letter-spacing: 0.3px;")
+        clean_err = err_msg.strip().split('\n')[0][:46]
+        self.lbl_stage_desc.setText(f"Error: {clean_err}")
+        self.lbl_stage_desc.setToolTip(err_msg)
         self.terminal.append_line(f"[CRITICAL WORKER ERROR] {err_msg}")
         QMessageBox.critical(self, "Flashing Error", f"Unexpected worker error:\n{err_msg}")
 

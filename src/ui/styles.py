@@ -16,6 +16,7 @@ from src.config.constants import ASSETS_DIR
 
 CHEVRON_ICON_PATH = (ASSETS_DIR / "icons" / "chevron-down.png").as_posix()
 CHEVRON_HOVER_ICON_PATH = (ASSETS_DIR / "icons" / "chevron-down-hover.png").as_posix()
+CHECK_ICON_PATH = (ASSETS_DIR / "icons" / "check-white.png").as_posix()
 
 _BASE_INDUSTRIAL_DARK_QSS = """
 /* Global Window & Typography */
@@ -112,13 +113,34 @@ QSplitter::handle:horizontal:hover {
     background-color: #38BDF8;
 }
 
-/* Navigation Buttons */
+/* Sidebar Edge Toggle Handle Button (Triangle in Middle of Edge) */
+QPushButton#btnSidebarEdgeToggle {
+    background-color: #1E293B;
+    color: #94A3B8;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 0;
+    text-align: center;
+}
+QPushButton#btnSidebarEdgeToggle:hover {
+    background-color: #334155;
+    color: #38BDF8;
+    border-color: #38BDF8;
+}
+QPushButton#btnSidebarEdgeToggle:pressed {
+    background-color: #0F172A;
+}
+
+
+/* Navigation Buttons (Clean Workstation - Left Accent Indicator) */
 QPushButton.nav-button {
     background-color: transparent;
     color: #94A3B8;
     border: none;
-    border-radius: 8px;
-    padding: 9px 12px;
+    border-radius: 6px;
+    padding: 8px 12px;
     font-size: 13px;
     font-weight: 600;
     text-align: left;
@@ -128,6 +150,7 @@ QPushButton.nav-button[compact="true"] {
     text-align: center;
     padding: 8px 0px;
     font-size: 15px;
+    border-radius: 6px;
 }
 
 QPushButton.nav-button:hover {
@@ -136,9 +159,18 @@ QPushButton.nav-button:hover {
 }
 
 QPushButton.nav-button:checked, QPushButton.nav-button[active="true"] {
-    background-color: #0284C7;
-    color: #FFFFFF;
+    background-color: #1E293B;
+    color: #38BDF8;
+    border-left: 3px solid #38BDF8;
+    border-radius: 6px;
     font-weight: 700;
+}
+
+QPushButton.nav-button[compact="true"]:checked, QPushButton.nav-button[compact="true"][active="true"] {
+    background-color: #1E293B;
+    color: #38BDF8;
+    border-left: 3px solid #38BDF8;
+    border-radius: 4px;
 }
 
 /* Cards & Containers */
@@ -385,7 +417,7 @@ QPushButton.btn-secondary {
     color: #E2E8F0;
     border: 1px solid #475569;
     border-radius: 6px;
-    padding: 7px 14px;
+    padding: 4px 12px;
     font-size: 12px;
     font-weight: 500;
 }
@@ -427,10 +459,11 @@ QLabel.badge-pass {
     background-color: #064E3B;
     color: #34D399;
     border: 1px solid #059669;
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-weight: 700;
-    font-size: 16px;
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-weight: 800;
+    font-size: 11.5px;
+    letter-spacing: 0.5px;
     qproperty-alignment: AlignCenter;
 }
 
@@ -438,21 +471,23 @@ QLabel.badge-fail {
     background-color: #7F1D1D;
     color: #F87171;
     border: 1px solid #DC2626;
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-weight: 700;
-    font-size: 16px;
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-weight: 800;
+    font-size: 11.5px;
+    letter-spacing: 0.5px;
     qproperty-alignment: AlignCenter;
 }
 
 QLabel.badge-ready {
-    background-color: #1E293B;
-    color: #94A3B8;
-    border: 1px solid #475569;
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-weight: 700;
-    font-size: 16px;
+    background-color: #064E3B;
+    color: #34D399;
+    border: 1px solid #10B981;
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-weight: 800;
+    font-size: 11.5px;
+    letter-spacing: 0.5px;
     qproperty-alignment: AlignCenter;
 }
 
@@ -460,10 +495,11 @@ QLabel.badge-running {
     background-color: #0C4A6E;
     color: #38BDF8;
     border: 1px solid #0284C7;
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-weight: 700;
-    font-size: 16px;
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-weight: 800;
+    font-size: 11.5px;
+    letter-spacing: 0.5px;
     qproperty-alignment: AlignCenter;
 }
 
@@ -471,10 +507,11 @@ QLabel.badge-warn {
     background-color: #78350F;
     color: #FBBF24;
     border: 1px solid #D97706;
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-weight: 700;
-    font-size: 16px;
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-weight: 800;
+    font-size: 11.5px;
+    letter-spacing: 0.5px;
     qproperty-alignment: AlignCenter;
 }
 
@@ -581,6 +618,49 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
     width: 0;
 }
 
+
+/* Checkboxes */
+QCheckBox {
+    color: #94A3B8;
+    font-size: 12px;
+    font-weight: 500;
+    spacing: 7px;
+}
+
+QCheckBox:hover {
+    color: #F8FAFC;
+}
+
+QCheckBox::indicator {
+    width: 15px;
+    height: 15px;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    background-color: #0F172A;
+}
+
+QCheckBox::indicator:hover {
+    border-color: #38BDF8;
+    background-color: #1E293B;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #0284C7;
+    border-color: #38BDF8;
+    image: url("__CHECK_ICON__");
+}
+
+QCheckBox::indicator:checked:hover {
+    background-color: #0369A1;
+    border-color: #7DD3FC;
+    image: url("__CHECK_ICON__");
+}
+
+QCheckBox::indicator:disabled {
+    border-color: #1E293B;
+    background-color: #0B1120;
+}
+
 /* Footer */
 QFrame#footerFrame {
     background-color: #0B1120;
@@ -600,7 +680,7 @@ QLabel#footerLink {
 }
 """
 
-INDUSTRIAL_DARK_QSS = _BASE_INDUSTRIAL_DARK_QSS.replace("__CHEVRON_ICON__", CHEVRON_ICON_PATH).replace("__CHEVRON_HOVER_ICON__", CHEVRON_HOVER_ICON_PATH)
+INDUSTRIAL_DARK_QSS = _BASE_INDUSTRIAL_DARK_QSS.replace("__CHEVRON_ICON__", CHEVRON_ICON_PATH).replace("__CHEVRON_HOVER_ICON__", CHEVRON_HOVER_ICON_PATH).replace("__CHECK_ICON__", CHECK_ICON_PATH)
 
 # Alias for backwards compatibility with any imports
 NEUMORPHISM_QSS = INDUSTRIAL_DARK_QSS

@@ -37,12 +37,15 @@ class HistoryView(QWidget):
         # Header bar
         header_layout = QHBoxLayout()
         title_box = QVBoxLayout()
+        title_box.setSpacing(3)
+        title_box.setContentsMargins(0, 0, 0, 0)
         lbl_title = QLabel("PRODUCTION AUDIT HISTORY")
-        lbl_title.setStyleSheet("color: #38BDF8; font-size: 20px; font-weight: 800;")
+        lbl_title.setStyleSheet("color: #38BDF8; font-size: 18px; font-weight: 800; letter-spacing: 0.8px; font-family: 'Segoe UI', -apple-system, sans-serif;")
         lbl_sub = QLabel("Comprehensive traceability records and compliance logs")
-        lbl_sub.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        lbl_sub.setStyleSheet("color: #94A3B8; font-size: 11.5px; font-weight: 500; font-family: 'Segoe UI', -apple-system, sans-serif;")
         title_box.addWidget(lbl_title)
         title_box.addWidget(lbl_sub)
+        title_box.addStretch()
         header_layout.addLayout(title_box)
         header_layout.addStretch()
 

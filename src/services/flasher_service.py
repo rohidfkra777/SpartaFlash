@@ -219,7 +219,7 @@ class FlasherService:
             if re.search(r"\bESP32-?C3\b", chip_upper) or "ESP32C3" in chip_upper:
                 return True, "Target chip terverifikasi: ESP32-C3"
             return False, (
-                f"HARDWARE MISMATCH: Target chip terdeteksi '{detected_chip}', namun produk AlfaEnergy Smart Plug (Plug) "
+                f"HARDWARE MISMATCH: Target chip terdeteksi '{detected_chip}', namun produk Sparta Smart Plug "
                 f"mewajibkan chip 'ESP32-C3' (RISC-V architecture).\n"
                 f"Flashing dibatalkan otomatis demi melindungi modul hardware dari kerusakan (bricking)."
             )
@@ -228,7 +228,7 @@ class FlasherService:
             # Must NOT be C3, S2, S3, C6, H2, or ESP8266
             if re.search(r"ESP32-?[CSH]\d", chip_upper) or "ESP8266" in chip_upper:
                 return False, (
-                    f"HARDWARE MISMATCH: Target chip terdeteksi '{detected_chip}', namun produk AlfaEnergy CT "
+                    f"HARDWARE MISMATCH: Target chip terdeteksi '{detected_chip}', namun produk Sparta Smart CT "
                     f"mewajibkan chip 'ESP32 Dual Core' (Xtensa LX6 architecture).\n"
                     f"Flashing dibatalkan otomatis demi melindungi modul hardware dari kerusakan (bricking)."
                 )

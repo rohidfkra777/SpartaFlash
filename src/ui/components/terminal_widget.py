@@ -30,16 +30,29 @@ class TerminalWidget(QFrame):
 
         self.chk_autoscroll = QCheckBox("Auto-scroll")
         self.chk_autoscroll.setChecked(True)
-        self.chk_autoscroll.setStyleSheet("color: #94A3B8; font-size: 11px;")
+        self.chk_autoscroll.setCursor(Qt.PointingHandCursor)
+        self.chk_autoscroll.setStyleSheet("""
+            QCheckBox {
+                color: #94A3B8;
+                font-size: 11px;
+                font-weight: 500;
+                spacing: 6px;
+            }
+            QCheckBox:hover {
+                color: #F8FAFC;
+            }
+        """)
 
         self.btn_copy = QPushButton("Copy")
         self.btn_copy.setProperty("class", "btn-secondary")
-        self.btn_copy.setFixedHeight(26)
+        self.btn_copy.setFixedHeight(28)
+        self.btn_copy.setCursor(Qt.PointingHandCursor)
         self.btn_copy.clicked.connect(self.copy_log)
 
         self.btn_clear = QPushButton("Clear")
         self.btn_clear.setProperty("class", "btn-secondary")
-        self.btn_clear.setFixedHeight(26)
+        self.btn_clear.setFixedHeight(28)
+        self.btn_clear.setCursor(Qt.PointingHandCursor)
         self.btn_clear.clicked.connect(self.clear_log)
 
         header_layout.addWidget(lbl_header)

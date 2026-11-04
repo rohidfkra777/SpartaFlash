@@ -434,9 +434,9 @@ class SafetyDialog(QDialog):
 
         # Mask proprietary firmware filename for corporate IP security
         if "plug" in str(self.product_name).lower() or "plug" in str(fw_name).lower():
-            display_fw = "Alfa Smart Plug (Protected)"
+            display_fw = "Sparta Smart Plug (Protected)"
         elif "ct" in str(self.product_name).lower() or "ct" in str(fw_name).lower():
-            display_fw = "Alfa Energy CT (Protected)"
+            display_fw = "Sparta Smart CT (Protected)"
         else:
             display_fw = f"{self.product_name} (Protected)"
 

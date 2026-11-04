@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QStackedWidget, QFrame, QSplitter
 )
-from PySide6.QtCore import Qt, QUrl, QSize
+from PySide6.QtCore import Qt, QUrl, QSize, QPoint, QTimer
 from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
 
 from src.config.constants import (
@@ -20,7 +20,6 @@ from src.ui.dashboard_view import DashboardView
 from src.ui.mqtt_monitor_view import MqttMonitorView
 from src.ui.history_view import HistoryView
 from src.ui.activity_log_view import ActivityLogView
-from src.ui.reports_view import ReportsView
 from src.ui.settings_view import SettingsView
 from src.ui.about_view import AboutView
 from src.ui.components.icon_provider import IconProvider
@@ -46,7 +45,6 @@ class MainWindow(QMainWindow):
             {"icon_name": "radio", "title": "Device Monitor", "tooltip": "Live MQTT Device Telemetry & Control"},
             {"icon_name": "history", "title": "Production History", "tooltip": "Production History Log"},
             {"icon_name": "activity", "title": "Activity Logs", "tooltip": "User Activity & Operational Audit Log"},
-            {"icon_name": "file-text", "title": "Batch Reports", "tooltip": "Batch Summary & Export Reports"},
             {"icon_name": "settings", "title": "Station Settings", "tooltip": "Station Configuration & Diagnostics"},
             {"icon_name": "info", "title": "About System", "tooltip": "System Information & Attribution"},
         ]
@@ -103,37 +101,27 @@ class MainWindow(QMainWindow):
             brand_box.addWidget(lbl_subtitle)
         header_exp_layout.addLayout(brand_box, stretch=1)
 
-        self.btn_collapse = QPushButton("◀")
-        self.btn_collapse.setObjectName("btnCollapseSidebar")
-        self.btn_collapse.setFixedSize(26, 26)
-        self.btn_collapse.setToolTip("Ciutkan ke Mode Ikon (Rail)")
-        self.btn_collapse.clicked.connect(self.toggle_sidebar_rail)
-        header_exp_layout.addWidget(self.btn_collapse, alignment=Qt.AlignTop)
 
-        # Header 2: Compact Rail Mode (Mini Logo + '▶' Expand Button)
+
+        # Header 2: Compact Rail Mode (Clean Brand Mini Logo - Clickable to Expand)
         self.header_rail = QWidget()
         header_rail_layout = QVBoxLayout(self.header_rail)
         header_rail_layout.setContentsMargins(0, 0, 0, 0)
-        header_rail_layout.setSpacing(8)
+        header_rail_layout.setSpacing(6)
 
         if APP_ICON_PATH.exists():
             lbl_mini_logo = QLabel()
-            pix_mini = QPixmap(str(APP_ICON_PATH)).scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pix_mini = QPixmap(str(APP_ICON_PATH)).scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             lbl_mini_logo.setPixmap(pix_mini)
         else:
             lbl_mini_logo = QLabel("⚡")
             lbl_mini_logo.setObjectName("miniLogoLabel")
         lbl_mini_logo.setAlignment(Qt.AlignCenter)
-        lbl_mini_logo.setToolTip(f"{APP_NAME}\n{COPYRIGHT_NOTICE}")
-
-        self.btn_expand_rail = QPushButton("▶")
-        self.btn_expand_rail.setObjectName("btnToggleRail")
-        self.btn_expand_rail.setFixedSize(36, 26)
-        self.btn_expand_rail.setToolTip("Buka Sidebar Penuh")
-        self.btn_expand_rail.clicked.connect(self.toggle_sidebar_rail)
+        lbl_mini_logo.setCursor(Qt.PointingHandCursor)
+        lbl_mini_logo.setToolTip(f"{APP_NAME} (Klik untuk buka sidebar)")
+        lbl_mini_logo.mousePressEvent = lambda _: self.toggle_sidebar_rail()
 
         header_rail_layout.addWidget(lbl_mini_logo, alignment=Qt.AlignCenter)
-        header_rail_layout.addWidget(self.btn_expand_rail, alignment=Qt.AlignCenter)
 
         self.side_layout.addWidget(self.header_expanded)
         self.side_layout.addWidget(self.header_rail)
@@ -141,9 +129,11 @@ class MainWindow(QMainWindow):
 
         self.side_layout.addSpacing(6)
 
-        # Nav Buttons
+        # Nav Buttons with Operations / Configuration Divider
         self.nav_buttons = []
         for i, item in enumerate(self.NAV_ITEMS):
+
+
             btn = QPushButton(f"  {item['title']}")
             btn.setIcon(IconProvider.get_icon(item["icon_name"], color="#94A3B8", active_color="#38BDF8", size=18))
             btn.setIconSize(QSize(18, 18))
@@ -256,6 +246,36 @@ class MainWindow(QMainWindow):
 
         self.side_layout.addWidget(self.user_card)
 
+        # Compact Rail Bottom Dock (Mini Avatar + Modern Expand Button)
+        self.bottom_rail_widget = QWidget()
+        b_rail_layout = QVBoxLayout(self.bottom_rail_widget)
+        b_rail_layout.setContentsMargins(0, 0, 0, 12)
+        b_rail_layout.setSpacing(8)
+
+        self.mini_user_btn = QPushButton()
+        self.mini_user_btn.setFixedSize(36, 36)
+        self.mini_user_btn.setCursor(Qt.PointingHandCursor)
+        self.mini_user_btn.setIcon(IconProvider.get_icon("user", "#38BDF8", 16))
+        self.mini_user_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #1E293B;
+                border: 1px solid #334155;
+                border-radius: 18px;
+            }
+            QPushButton:hover {
+                background-color: #334155;
+                border-color: #38BDF8;
+            }
+        """)
+        self.mini_user_btn.setToolTip("Sesi Pengguna Aktif (Klik untuk kelola akun)")
+        self.mini_user_btn.clicked.connect(self._on_manage_users)
+        b_rail_layout.addWidget(self.mini_user_btn, alignment=Qt.AlignCenter)
+
+
+
+        self.side_layout.addWidget(self.bottom_rail_widget)
+        self.bottom_rail_widget.setVisible(False)
+
 
         self.splitter.addWidget(self.sidebar)
 
@@ -284,22 +304,20 @@ class MainWindow(QMainWindow):
         self.mqtt_monitor_view = MqttMonitorView()
         self.history_view = HistoryView()
         self.activity_log_view = ActivityLogView()
-        self.reports_view = ReportsView()
         self.settings_view = SettingsView()
         self.about_view = AboutView()
 
         # Connect inter-view signals
         self.dashboard_view.sig_request_monitor.connect(lambda: self.switch_view(1))
         self.dashboard_view.sig_request_history.connect(lambda: self.switch_view(2))
-        self.dashboard_view.sig_request_settings.connect(lambda: self.switch_view(5))
+        self.dashboard_view.sig_request_settings.connect(lambda: self.switch_view(4))
 
         self.stack.addWidget(self.dashboard_view)      # Index 0
         self.stack.addWidget(self.mqtt_monitor_view)   # Index 1
         self.stack.addWidget(self.history_view)        # Index 2
         self.stack.addWidget(self.activity_log_view)   # Index 3
-        self.stack.addWidget(self.reports_view)        # Index 4
-        self.stack.addWidget(self.settings_view)       # Index 5
-        self.stack.addWidget(self.about_view)          # Index 6
+        self.stack.addWidget(self.settings_view)       # Index 4
+        self.stack.addWidget(self.about_view)          # Index 5
 
         content_layout.addWidget(self.stack, stretch=1)
         self.splitter.addWidget(content_container)
@@ -311,6 +329,14 @@ class MainWindow(QMainWindow):
         self.splitter.splitterMoved.connect(self._on_splitter_moved)
 
         root_layout.addWidget(self.splitter, stretch=1)
+
+        # Floating Sidebar Edge Toggle Handle Button (Triangle in Middle of Sidebar Edge)
+        self.btn_edge_toggle = QPushButton("◀", self)
+        self.btn_edge_toggle.setObjectName("btnSidebarEdgeToggle")
+        self.btn_edge_toggle.setFixedSize(16, 40)
+        self.btn_edge_toggle.setCursor(Qt.PointingHandCursor)
+        self.btn_edge_toggle.setToolTip("Ciutkan Sidebar ke Mode Ikon (Rail)")
+        self.btn_edge_toggle.clicked.connect(self.toggle_sidebar_rail)
 
         # Corporate Footer - Internal Enterprise Designation
         footer = QFrame()
@@ -336,9 +362,9 @@ class MainWindow(QMainWindow):
         self.switch_view(0)
 
     def switch_view(self, index: int):
-        # RBAC Security Guard: Operators are restricted to Dashboard (0), Device Monitor (1 - Read Only), Production History (2), and About (6)
+        # RBAC Security Guard: Operators are restricted to Dashboard (0), Device Monitor (1 - Read Only), Production History (2), and About (5)
         user = auth_service.current_user
-        if user and not user.is_admin and index not in (0, 1, 2, 6):
+        if user and not user.is_admin and index not in (0, 1, 2, 5):
             index = 0
 
         self.stack.setCurrentIndex(index)
@@ -356,8 +382,6 @@ class MainWindow(QMainWindow):
         elif index == 3:
             self.activity_log_view.load_activities()
         elif index == 4:
-            self.reports_view.refresh_batches()
-        elif index == 5:
             self.settings_view.run_dependency_check()
 
     def _apply_rail_ui(self, rail_mode: bool):
@@ -379,6 +403,11 @@ class MainWindow(QMainWindow):
 
         if hasattr(self, "user_card"):
             self.user_card.setVisible(not rail_mode)
+        if hasattr(self, "bottom_rail_widget"):
+            self.bottom_rail_widget.setVisible(rail_mode)
+        if hasattr(self, "btn_edge_toggle"):
+            self.btn_edge_toggle.setText("▶" if rail_mode else "◀")
+            self.btn_edge_toggle.setToolTip("Buka Sidebar Penuh" if rail_mode else "Ciutkan Sidebar ke Mode Ikon (Rail)")
 
 
     def _update_user_ui(self, user=None):
@@ -391,6 +420,10 @@ class MainWindow(QMainWindow):
 
         is_dev = False
         is_admin = user.is_admin
+
+        if hasattr(self, "mini_user_btn"):
+            role_label = "Developer" if is_dev else ("Administrator" if is_admin else "Operator")
+            self.mini_user_btn.setToolTip(f"User: {user.username} ({role_label})\nKlik untuk kelola akun")
 
         if is_dev:
             self.lbl_user_role.setText("ADMIN")
@@ -429,11 +462,11 @@ class MainWindow(QMainWindow):
         if hasattr(self, "btn_manage_users"):
             self.btn_manage_users.setVisible(is_admin)
 
-        # RBAC: Restrict Operators to Dashboard (0), Device Monitor (1), Production History (2), and About (6)
-        # Hide sensitive administrative views: Activity Logs (3), Batch Reports (4), Settings (5)
+        # RBAC: Restrict Operators to Dashboard (0), Device Monitor (1), Production History (2), and About (5)
+        # Hide sensitive administrative views: Activity Logs (3), Settings (4)
         if hasattr(self, "nav_buttons"):
             for idx, btn in enumerate(self.nav_buttons):
-                if idx in (0, 1, 2, 6):
+                if idx in (0, 1, 2, 5):
                     btn.setVisible(True)  # Accessible to Operator
                 else:
                     btn.setVisible(is_admin)
@@ -450,7 +483,7 @@ class MainWindow(QMainWindow):
             self.mqtt_monitor_view.set_read_only_mode(not is_admin)
 
         # If currently on a forbidden view when switching user, force redirect to Dashboard
-        if not is_admin and self.stack.currentIndex() not in (0, 1, 2, 6):
+        if not is_admin and self.stack.currentIndex() not in (0, 1, 2, 5):
             self.switch_view(0)
 
     def _on_manage_users(self):
@@ -478,7 +511,7 @@ class MainWindow(QMainWindow):
         """Toggles between Expanded mode (~230px) and Compact Icon Rail mode (64px)."""
         sizes = self.splitter.sizes()
         total_width = sum(sizes)
-        if self.is_rail_mode:
+        if self.is_rail_mode or not self.sidebar.isVisible() or sizes[0] < 120:
             target_width = max(self.last_sidebar_width, 220)
             self.sidebar.setVisible(True)
             self.expand_bar.setVisible(False)
@@ -491,6 +524,7 @@ class MainWindow(QMainWindow):
             self.expand_bar.setVisible(False)
             self._apply_rail_ui(True)
             self.splitter.setSizes([64, total_width - 64])
+        self._reposition_toggle_button()
 
     def collapse_sidebar(self):
         """Collapses sidebar completely to hidden state."""
@@ -499,6 +533,7 @@ class MainWindow(QMainWindow):
             self.last_sidebar_width = sizes[0]
         self.sidebar.setVisible(False)
         self.expand_bar.setVisible(True)
+        self._reposition_toggle_button()
 
     def expand_sidebar(self):
         """Expands sidebar from fully hidden state and restores expanded width."""
@@ -508,6 +543,7 @@ class MainWindow(QMainWindow):
         self._apply_rail_ui(False)
         self.splitter.setSizes([width, total_width - width])
         self.expand_bar.setVisible(False)
+        self._reposition_toggle_button()
 
     def _on_splitter_moved(self, pos: int, index: int):
         """Handles manual splitter drag events."""
@@ -526,6 +562,42 @@ class MainWindow(QMainWindow):
                 if self.is_rail_mode:
                     self._apply_rail_ui(False)
                 self.last_sidebar_width = sb_w
+        self._reposition_toggle_button()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        QTimer.singleShot(0, self._reposition_toggle_button)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._reposition_toggle_button()
+
+    def _reposition_toggle_button(self):
+        """Positions the floating triangle handle button precisely in the vertical center of the sidebar border."""
+        if not hasattr(self, "btn_edge_toggle") or not hasattr(self, "splitter"):
+            return
+        try:
+            h = self.splitter.handle(1)
+            if h and h.isVisible():
+                pos = h.mapTo(self, QPoint(0, 0))
+                x = pos.x() + (h.width() - self.btn_edge_toggle.width()) // 2
+                y = pos.y() + (h.height() - self.btn_edge_toggle.height()) // 2
+            else:
+                w0 = self.sidebar.width() if self.sidebar.isVisible() else 0
+                x = max(0, w0 - self.btn_edge_toggle.width() // 2)
+                y = (self.height() - self.btn_edge_toggle.height()) // 2
+
+            self.btn_edge_toggle.move(x, y)
+            self.btn_edge_toggle.raise_()
+
+            if self.is_rail_mode or self.sidebar.isHidden():
+                self.btn_edge_toggle.setText("▶")
+                self.btn_edge_toggle.setToolTip("Buka Sidebar Penuh")
+            else:
+                self.btn_edge_toggle.setText("◀")
+                self.btn_edge_toggle.setToolTip("Ciutkan Sidebar ke Mode Ikon (Rail)")
+        except Exception:
+            pass
 
     def closeEvent(self, event):
         """Ensures background network workers and MQTT clients are cleanly stopped."""

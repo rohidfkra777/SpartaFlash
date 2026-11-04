@@ -190,6 +190,7 @@ class MqttMonitorView(QWidget):
         self._skip_status_confirm = False
         self._prev_device_statuses: Dict[str, str] = {}
         self._unread_notification_count: int = 0
+        self._current_pub_mac: Optional[str] = None
 
         # Native Windows Taskbar Notification (strictly no floating in-app toasts)
         self.tray_icon: Optional[QSystemTrayIcon] = None
@@ -223,12 +224,15 @@ class MqttMonitorView(QWidget):
         header_bar = QHBoxLayout()
 
         title_box = QVBoxLayout()
+        title_box.setSpacing(3)
+        title_box.setContentsMargins(0, 0, 0, 0)
         lbl_title = QLabel("DEVICE MONITOR & LIVE COCKPIT")
-        lbl_title.setStyleSheet("color: #38BDF8; font-size: 20px; font-weight: 800;")
+        lbl_title.setStyleSheet("color: #38BDF8; font-size: 18px; font-weight: 800; letter-spacing: 0.8px; font-family: 'Segoe UI', -apple-system, sans-serif;")
         self.lbl_sub = QLabel("Real-time telemetry and remote control for flashed devices")
-        self.lbl_sub.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        self.lbl_sub.setStyleSheet("color: #94A3B8; font-size: 11.5px; font-weight: 500; font-family: 'Segoe UI', -apple-system, sans-serif;")
         title_box.addWidget(lbl_title)
         title_box.addWidget(self.lbl_sub)
+        title_box.addStretch()
         header_bar.addLayout(title_box)
 
         header_bar.addStretch()
@@ -248,12 +252,9 @@ class MqttMonitorView(QWidget):
         """)
         header_bar.addWidget(self.lbl_broker_status)
 
+        # Reconnect button removed for clean UI & zero ambiguity (Auto-reconnect is handled natively)
         self.btn_reconnect = QPushButton(" Reconnect")
-        self.btn_reconnect.setFixedHeight(30)
-        self.btn_reconnect.setIcon(IconProvider.get_icon("refresh-cw", "#94A3B8", 14))
-        self.btn_reconnect.setProperty("class", "btn-secondary")
-        self.btn_reconnect.clicked.connect(lambda: mqtt_service.start())
-        header_bar.addWidget(self.btn_reconnect)
+        self.btn_reconnect.hide()
 
         # Notification Bell & System Audit Log Button
         self.btn_notifications = QPushButton(" Log")
@@ -363,6 +364,11 @@ class MqttMonitorView(QWidget):
         self.lbl_cockpit_name.setStyleSheet("color: #F8FAFC; font-size: 16px; font-weight: 800;")
         dev_title_row.addWidget(self.lbl_cockpit_name)
 
+        # Passive Relay Status Badge (Industrial Read-Only Indicator)
+        self.lbl_relay_badge = QLabel()
+        self.lbl_relay_badge.hide()
+        dev_title_row.addWidget(self.lbl_relay_badge)
+
         # Interactive Location / Notes Pill Badge (Option 1)
         self.btn_location_pill = QPushButton()
         self.btn_location_pill.setCursor(Qt.PointingHandCursor)
@@ -383,100 +389,44 @@ class MqttMonitorView(QWidget):
         btn_box.setSpacing(6)
         btn_box.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
+        # Web UI button removed from header for cleaner cockpit (moved to Right-Click context menu)
         self.btn_web_ui = QPushButton(" Web UI")
-        self.btn_web_ui.setIcon(IconProvider.get_icon("play", "#38BDF8", 12))
-        self.btn_web_ui.setProperty("class", "btn-secondary")
-        self.btn_web_ui.setFixedHeight(30)
-        self.btn_web_ui.setEnabled(False)
-        self.btn_web_ui.clicked.connect(self._open_device_web_ui)
-        btn_box.addWidget(self.btn_web_ui)
+        self.btn_web_ui.hide()
 
-        self.btn_cmd_query = QPushButton(" Query")
+        self.btn_cmd_query = QPushButton(" Refresh")
         self.btn_cmd_query.setIcon(IconProvider.get_icon("refresh-cw", "#94A3B8", 12))
         self.btn_cmd_query.setProperty("class", "btn-secondary")
         self.btn_cmd_query.setFixedHeight(30)
+        self.btn_cmd_query.setToolTip("Tarik data sensor dan status jaringan terbaru (Read-Only & Aman)")
         self.btn_cmd_query.setEnabled(False)
         self.btn_cmd_query.clicked.connect(self._send_query_status)
         btn_box.addWidget(self.btn_cmd_query)
 
+        # Restart removed from header for clean UI & industrial safety (accessible via Right-Click)
         self.btn_cmd_restart = QPushButton(" Restart")
-        self.btn_cmd_restart.setIcon(IconProvider.get_icon("rotate-ccw", "#EF4444", 12))
-        self.btn_cmd_restart.setProperty("class", "btn-danger")
-        self.btn_cmd_restart.setFixedHeight(30)
-        self.btn_cmd_restart.setEnabled(False)
-        self.btn_cmd_restart.clicked.connect(self._send_restart)
-        btn_box.addWidget(self.btn_cmd_restart)
+        self.btn_cmd_restart.hide()
 
         cockpit_header.addLayout(btn_box)
 
         self.cockpit_layout.addLayout(cockpit_header)
 
-        # Power Relay Control Banner
-        self.relay_banner = QFrame()
-        self.relay_banner.setStyleSheet("""
-            QFrame {
-                background-color: #0F172A;
-                border: 1px solid #334155;
-                border-radius: 8px;
-                padding: 6px;
-            }
-        """)
-        relay_layout = QHBoxLayout(self.relay_banner)
-        relay_layout.setContentsMargins(8, 6, 8, 6)
-        relay_layout.setSpacing(8)
 
-        lbl_relay_title = QLabel("RELAY:")
-        lbl_relay_title.setStyleSheet("color: #94A3B8; font-weight: 700; font-size: 11px;")
-        relay_layout.addWidget(lbl_relay_title)
 
-        self.btn_toggle_power = QPushButton("POWER: UNKNOWN")
-        self.btn_toggle_power.setStyleSheet("""
-            QPushButton {
-                background-color: #334155;
-                color: #FFFFFF;
-                border: 1px solid #475569;
-                border-radius: 6px;
-                font-weight: 800;
-                font-size: 12px;
-                padding: 6px 14px;
-            }
-            QPushButton:hover { background-color: #475569; }
-        """)
-        self.btn_toggle_power.setEnabled(False)
-        self.btn_toggle_power.clicked.connect(self._send_toggle_power)
-        relay_layout.addWidget(self.btn_toggle_power)
-
-        relay_layout.addStretch()
-
-        self.btn_force_on = QPushButton("FORCE ON")
-        self.btn_force_on.setProperty("class", "btn-primary")
-        self.btn_force_on.setEnabled(False)
-        self.btn_force_on.clicked.connect(lambda: self._send_power_direct("ON"))
-        relay_layout.addWidget(self.btn_force_on)
-
-        self.btn_force_off = QPushButton("FORCE OFF")
-        self.btn_force_off.setProperty("class", "btn-secondary")
-        self.btn_force_off.setEnabled(False)
-        self.btn_force_off.clicked.connect(lambda: self._send_power_direct("OFF"))
-        relay_layout.addWidget(self.btn_force_off)
-
-        self.cockpit_layout.addWidget(self.relay_banner)
-
-        # 4 Telemetry Metrics Cards Grid
+        # 4 Telemetry Metrics Cards Grid (Clean Industrial Design - No AI Slop)
         metrics_layout = QHBoxLayout()
         metrics_layout.setSpacing(8)
 
         self.card_voltage = self._create_metric_card(
-            "VOLTAGE", "Grid RMS Voltage", "0.0 V", "V", "#38BDF8", "zap"
+            "VOLTAGE", "Nominal 220V", "0.0 V", "VAC", "#38BDF8"
         )
         self.card_current = self._create_metric_card(
-            "CURRENT", "Instantaneous Load", "0.00 A", "A", "#F59E0B", "zap"
+            "CURRENT", "Arus Beban", "0.00 A", "AMP", "#FBBF24"
         )
         self.card_power = self._create_metric_card(
-            "POWER", "Active Power Draw", "0.0 W", "W", "#10B981", "zap"
+            "POWER", "Daya Aktif", "0.0 W", "WATT", "#34D399"
         )
         self.card_energy = self._create_metric_card(
-            "ENERGY", "Total Consumption", "0.00 kWh", "kWh", "#A855F7", "zap"
+            "ENERGY", "Total Akumulasi", "0.00 kWh", "KWH", "#C084FC"
         )
 
         metrics_layout.addWidget(self.card_voltage)
@@ -504,24 +454,38 @@ class MqttMonitorView(QWidget):
         self.chk_auto_scroll = QCheckBox("Auto-scroll")
         self.chk_auto_scroll.setChecked(True)
         self.chk_auto_scroll.setCursor(Qt.PointingHandCursor)
-        self.chk_auto_scroll.setStyleSheet("""
-            QCheckBox {
+        from src.ui.styles import CHECK_ICON_PATH
+        self.chk_auto_scroll.setStyleSheet(f"""
+            QCheckBox {{
                 color: #38BDF8;
                 font-size: 11px;
                 font-weight: 600;
-                spacing: 5px;
-            }
-            QCheckBox::indicator {
-                width: 14px;
-                height: 14px;
-                border-radius: 3px;
+                spacing: 6px;
+            }}
+            QCheckBox:hover {{
+                color: #7DD3FC;
+            }}
+            QCheckBox::indicator {{
+                width: 15px;
+                height: 15px;
+                border-radius: 4px;
                 border: 1px solid #334155;
                 background-color: #0F172A;
-            }
-            QCheckBox::indicator:checked {
+            }}
+            QCheckBox::indicator:hover {{
+                border-color: #38BDF8;
+                background-color: #1E293B;
+            }}
+            QCheckBox::indicator:checked {{
                 background-color: #0284C7;
                 border-color: #38BDF8;
-            }
+                image: url("{CHECK_ICON_PATH}");
+            }}
+            QCheckBox::indicator:checked:hover {{
+                background-color: #0369A1;
+                border-color: #7DD3FC;
+                image: url("{CHECK_ICON_PATH}");
+            }}
         """)
         self.chk_auto_scroll.toggled.connect(self._on_auto_scroll_toggled)
         con_header.addWidget(self.chk_auto_scroll)
@@ -591,7 +555,7 @@ class MqttMonitorView(QWidget):
         self.splitter.setStretchFactor(0, 5)
         self.splitter.setStretchFactor(1, 6)
 
-        root_layout.addWidget(self.splitter)
+        root_layout.addWidget(self.splitter, stretch=1)
 
     def _create_metric_card(
         self,
@@ -599,22 +563,21 @@ class MqttMonitorView(QWidget):
         subtitle: str,
         default_val: str,
         unit_badge: str,
-        color_hex: str,
-        icon_name: str = "zap",
+        color_hex: str = "#94A3B8",
+        icon_name: str = "",
     ) -> QFrame:
         card = QFrame()
         card_id = f"metricCard_{title.lower()}"
         card.setObjectName(card_id)
         card.setStyleSheet(f"""
             QFrame#{card_id} {{
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1E293B, stop:1 #0F172A);
-                border: 1px solid #334155;
-                border-top: 3px solid {color_hex};
-                border-radius: 8px;
+                background-color: #0F172A;
+                border: 1px solid #1E293B;
+                border-radius: 6px;
             }}
             QFrame#{card_id}:hover {{
-                border-color: {color_hex};
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #24344D, stop:1 #111C2E);
+                border-color: #334155;
+                background-color: #131D31;
             }}
             QFrame#{card_id} QLabel {{
                 background: transparent;
@@ -625,38 +588,40 @@ class MqttMonitorView(QWidget):
 
         vbox = QVBoxLayout(card)
         vbox.setContentsMargins(12, 10, 12, 10)
-        vbox.setSpacing(6)
+        vbox.setSpacing(4)
 
-        # Header Row: Icon + Title on left, 1-Phase Unit Tag on right
+        # Header Row: Title on left, clean subtle unit badge on right (no duplicate icons)
         header_row = QHBoxLayout()
         header_row.setSpacing(6)
 
-        pixmap = IconProvider.get_pixmap(icon_name, color_hex, 14)
-        lbl_icon = QLabel()
-        lbl_icon.setPixmap(pixmap)
-        header_row.addWidget(lbl_icon)
-
         lbl_t = QLabel(title.upper())
-        lbl_t.setStyleSheet("color: #CBD5E1; font-size: 11px; font-weight: 800; letter-spacing: 0.5px;")
+        lbl_t.setStyleSheet("color: #94A3B8; font-size: 10px; font-weight: 700; letter-spacing: 0.6px;")
         header_row.addWidget(lbl_t)
         header_row.addStretch()
 
         badge_text = unit_badge.strip()
-        lbl_badge = QLabel(f"1-PHASE • {badge_text}")
-        lbl_badge.setStyleSheet("color: #94A3B8; font-size: 9px; font-weight: 700; background-color: #0B1120; border: 1px solid #1E293B; border-radius: 4px; padding: 2px 6px;")
+        lbl_badge = QLabel(badge_text)
+        lbl_badge.setStyleSheet("""
+            color: #64748B;
+            font-size: 9px;
+            font-weight: 700;
+            background-color: #1E293B;
+            border-radius: 3px;
+            padding: 1px 5px;
+        """)
         header_row.addWidget(lbl_badge)
 
         vbox.addLayout(header_row)
 
-        # Metric Value (Large, bold, monospace)
+        # Metric Value (Semantic Electrical Color Coding - Option 1)
         lbl_v = QLabel(default_val)
         lbl_v.setObjectName("metricValue")
-        lbl_v.setStyleSheet(f"color: {color_hex}; font-size: 24px; font-weight: 900; font-family: 'Consolas', 'Segoe UI', monospace; padding: 2px 0;")
+        lbl_v.setStyleSheet(f"color: {color_hex}; font-size: 24px; font-weight: 700; font-family: 'Segoe UI', sans-serif; padding: 2px 0;")
         vbox.addWidget(lbl_v)
 
-        # Subtitle / descriptor
+        # Subtitle / operational status
         lbl_sub = QLabel(subtitle)
-        lbl_sub.setStyleSheet("color: #64748B; font-size: 10px; font-weight: 600;")
+        lbl_sub.setStyleSheet("color: #64748B; font-size: 10px; font-weight: 500;")
         vbox.addWidget(lbl_sub)
 
         return card
@@ -683,7 +648,7 @@ class MqttMonitorView(QWidget):
         self._is_read_only = is_read_only
         self.btn_cmd_restart.setVisible(not is_read_only)
         if hasattr(self, "btn_web_ui"):
-            self.btn_web_ui.setVisible(not is_read_only)
+            self.btn_web_ui.hide()
         if hasattr(self, "pub_widget"):
             self.pub_widget.setVisible(not is_read_only)
         if hasattr(self, "table_devices"):
@@ -1216,116 +1181,34 @@ class MqttMonitorView(QWidget):
         wifi_txt = f"{dev.wifi_ssid} ({rssi_txt})" if (dev.wifi_ssid and dev.wifi_rssi) else (dev.wifi_ssid or "N/A")
         status_color = "#34D399" if is_online else "#F87171"
         status_tag = f"<span style='color: {status_color}; font-weight: 700;'>{'● ONLINE' if is_online else '○ OFFLINE'}</span>"
+
+        # Relay status integrated directly into the online metadata row
+        p_state = (dev.power_state or "UNKNOWN").upper()
+        if p_state == "ON":
+            relay_tag = "<span style='color: #34D399; font-weight: 700;'>● ON</span>"
+        elif p_state == "OFF":
+            relay_tag = "<span style='color: #F87171; font-weight: 700;'>○ OFF</span>"
+        else:
+            relay_tag = "<span style='color: #94A3B8; font-weight: 700;'>UNKNOWN</span>"
+
         self.lbl_cockpit_meta.setText(
-            f"MAC: {dev.mac_address} | Type: {dev.product_category} | IP: {ip_txt} | WiFi: {wifi_txt} | Status: {status_tag}"
+            f"MAC: {dev.mac_address} | Type: {dev.product_category} | IP: {ip_txt} | WiFi: {wifi_txt} | Status: {status_tag} | Relay: {relay_tag}"
         )
 
         # Web UI, Query, and Restart buttons
-        self.btn_web_ui.setVisible(not self._is_read_only)
-        self.btn_web_ui.setEnabled(bool(dev.ip_address and is_online and not self._is_read_only))
+        if hasattr(self, "btn_web_ui"):
+            self.btn_web_ui.hide()
         self.btn_cmd_query.setEnabled(is_online)
-        self.btn_cmd_restart.setVisible(not self._is_read_only)
-        self.btn_cmd_restart.setEnabled(is_online and not self._is_read_only)
+        if hasattr(self, "btn_cmd_restart"):
+            self.btn_cmd_restart.setEnabled(is_online and not self._is_read_only)
+            self.btn_cmd_restart.hide()
 
         if self._is_read_only:
             self.btn_location_pill.setEnabled(False)
             self.btn_location_pill.setToolTip(f"Panel & Fasa: {dev.notes or 'Belum diatur'} (Hanya Administrator yang dapat mengubah)")
 
-        # Relay button logic (available for both Plug and CT)
-        self.relay_banner.show()
-        p_state = dev.power_state.upper()
-
-        if self._is_read_only:
-            self.btn_toggle_power.setEnabled(False)
-            self.btn_force_on.setVisible(False)
-            self.btn_force_off.setVisible(False)
-            if p_state == "ON":
-                self.btn_toggle_power.setText("● RELAY STATUS: ON (READ-ONLY)")
-                self.btn_toggle_power.setStyleSheet("""
-                    QPushButton {
-                        background-color: #064E3B;
-                        color: #6EE7B7;
-                        border: 1px solid #10B981;
-                        border-radius: 6px;
-                        font-weight: 800;
-                        font-size: 13px;
-                        padding: 8px 18px;
-                    }
-                """)
-            elif p_state == "OFF":
-                self.btn_toggle_power.setText("○ RELAY STATUS: OFF (READ-ONLY)")
-                self.btn_toggle_power.setStyleSheet("""
-                    QPushButton {
-                        background-color: #450A0A;
-                        color: #FCA5A5;
-                        border: 1px solid #EF4444;
-                        border-radius: 6px;
-                        font-weight: 800;
-                        font-size: 13px;
-                        padding: 8px 18px;
-                    }
-                """)
-            else:
-                self.btn_toggle_power.setText("RELAY STATUS: UNKNOWN (READ-ONLY)")
-                self.btn_toggle_power.setStyleSheet("""
-                    QPushButton {
-                        background-color: #1E293B;
-                        color: #94A3B8;
-                        border: 1px solid #334155;
-                        border-radius: 6px;
-                        font-weight: 800;
-                        font-size: 13px;
-                        padding: 8px 18px;
-                    }
-                """)
-        else:
-            self.btn_force_on.setVisible(True)
-            self.btn_force_off.setVisible(True)
-            self.btn_toggle_power.setEnabled(is_online)
-            self.btn_force_on.setEnabled(is_online)
-            self.btn_force_off.setEnabled(is_online)
-
-            if p_state == "ON":
-                self.btn_toggle_power.setText("⚡ POWER: ON (CLICK TO TOGGLE)")
-                self.btn_toggle_power.setStyleSheet("""
-                    QPushButton {
-                        background-color: #065F46;
-                        color: #6EE7B7;
-                        border: 1px solid #10B981;
-                        border-radius: 6px;
-                        font-weight: 800;
-                        font-size: 13px;
-                        padding: 8px 18px;
-                    }
-                    QPushButton:hover { background-color: #047857; }
-                """)
-            elif p_state == "OFF":
-                self.btn_toggle_power.setText("○ POWER: OFF (CLICK TO TOGGLE)")
-                self.btn_toggle_power.setStyleSheet("""
-                    QPushButton {
-                        background-color: #450A0A;
-                        color: #FCA5A5;
-                        border: 1px solid #EF4444;
-                        border-radius: 6px;
-                        font-weight: 800;
-                        font-size: 13px;
-                        padding: 8px 18px;
-                    }
-                    QPushButton:hover { background-color: #7F1D1D; }
-                """)
-            else:
-                self.btn_toggle_power.setText("POWER: UNKNOWN")
-                self.btn_toggle_power.setStyleSheet("""
-                    QPushButton {
-                        background-color: #334155;
-                        color: #F8FAFC;
-                        border: 1px solid #475569;
-                        border-radius: 6px;
-                        font-weight: 800;
-                        font-size: 13px;
-                        padding: 8px 18px;
-                    }
-                """)
+        if hasattr(self, "lbl_relay_badge"):
+            self.lbl_relay_badge.hide()
 
         # Telemetry metrics
         lbl_v = self.card_voltage.findChild(QLabel, "metricValue")
@@ -1344,58 +1227,62 @@ class MqttMonitorView(QWidget):
         if lbl_e:
             lbl_e.setText(f"{dev.energy:.2f} kWh" if is_online else "---")
 
-        # Update preset topics in dropdown for current device
+        # Update preset topics in dropdown ONLY if selected device changes
+        # (Prevents background telemetry packets from wiping user's command selection)
         mac_key = mqtt_service.get_device_topic_key(dev.mac_address)
-        self.cmb_pub_topic.blockSignals(True)
-        self.cmb_pub_topic.clear()
-        if is_plug:
-            topic_presets = [
-                f"AlfaEnergy/Plug/{mac_key}/cmnd/Power",
-                f"AlfaEnergy/Plug/{mac_key}/cmnd/Status",
-                f"AlfaEnergy/Plug/{mac_key}/cmnd/DeviceName",
-                f"AlfaEnergy/Plug/{mac_key}/cmnd/FriendlyName1",
-                f"AlfaEnergy/Plug/{mac_key}/cmnd/BufferStatus",
-                f"AlfaEnergy/Plug/{mac_key}/cmnd/BufferClear",
-                f"AlfaEnergy/Plug/{mac_key}/cmnd/TelePeriod",
-                f"AlfaEnergy/Plug/{mac_key}/cmnd/Restart",
-                f"AlfaEnergy/Plug/{mac_key}/cmnd/Upgrade",
-                f"AlfaEnergy/Plug/{mac_key}/cmnd/EnergyReset",
-                f"AlfaEnergy/Plug/{mac_key}/cmnd/WifiReset",
-                f"AlfaEnergy/Plug/{mac_key}/cmnd/Reset",
-                "AlfaEnergy/Plug/alfaenergy_plug_all/cmnd/Upgrade",
-            ]
-        else:
-            topic_presets = [
-                f"AlfaEnergy/CT/{mac_key}/cmnd/Power",
-                f"AlfaEnergy/CT/{mac_key}/cmnd/Status",
-                f"AlfaEnergy/CT/{mac_key}/cmnd/DeviceName",
-                f"AlfaEnergy/CT/{mac_key}/cmnd/FriendlyName1",
-                f"AlfaEnergy/CT/{mac_key}/cmnd/BufferStatus",
-                f"AlfaEnergy/CT/{mac_key}/cmnd/BufferClear",
-                f"AlfaEnergy/CT/{mac_key}/cmnd/TelePeriod",
-                f"AlfaEnergy/CT/{mac_key}/cmnd/Restart",
-                f"AlfaEnergy/CT/{mac_key}/cmnd/Upgrade",
-                f"AlfaEnergy/CT/{mac_key}/cmnd/EnergyReset",
-                f"AlfaEnergy/CT/{mac_key}/cmnd/WifiReset",
-                f"AlfaEnergy/CT/{mac_key}/cmnd/Reset",
-                "AlfaEnergy/CT/alfaenergy_ct_all/cmnd/Upgrade",
-            ]
-        self.cmb_pub_topic.addItems(topic_presets)
-        self.cmb_pub_topic.blockSignals(False)
-        self._on_pub_topic_changed(self.cmb_pub_topic.currentText())
+        if getattr(self, "_current_pub_mac", None) != dev.mac_address:
+            self._current_pub_mac = dev.mac_address
+            self.cmb_pub_topic.blockSignals(True)
+            self.cmb_pub_topic.clear()
+            if is_plug:
+                topic_presets = [
+                    f"AlfaEnergy/Plug/{mac_key}/cmnd/Power",
+                    f"AlfaEnergy/Plug/{mac_key}/cmnd/Status",
+                    f"AlfaEnergy/Plug/{mac_key}/cmnd/DeviceName",
+                    f"AlfaEnergy/Plug/{mac_key}/cmnd/FriendlyName1",
+                    f"AlfaEnergy/Plug/{mac_key}/cmnd/BufferStatus",
+                    f"AlfaEnergy/Plug/{mac_key}/cmnd/BufferClear",
+                    f"AlfaEnergy/Plug/{mac_key}/cmnd/TelePeriod",
+                    f"AlfaEnergy/Plug/{mac_key}/cmnd/Restart",
+                    f"AlfaEnergy/Plug/{mac_key}/cmnd/Upgrade",
+                    f"AlfaEnergy/Plug/{mac_key}/cmnd/EnergyReset",
+                    f"AlfaEnergy/Plug/{mac_key}/cmnd/WifiReset",
+                    f"AlfaEnergy/Plug/{mac_key}/cmnd/Reset",
+                    "AlfaEnergy/Plug/alfaenergy_plug_all/cmnd/Upgrade",
+                ]
+            else:
+                topic_presets = [
+                    f"AlfaEnergy/CT/{mac_key}/cmnd/Power",
+                    f"AlfaEnergy/CT/{mac_key}/cmnd/Status",
+                    f"AlfaEnergy/CT/{mac_key}/cmnd/DeviceName",
+                    f"AlfaEnergy/CT/{mac_key}/cmnd/FriendlyName1",
+                    f"AlfaEnergy/CT/{mac_key}/cmnd/BufferStatus",
+                    f"AlfaEnergy/CT/{mac_key}/cmnd/BufferClear",
+                    f"AlfaEnergy/CT/{mac_key}/cmnd/TelePeriod",
+                    f"AlfaEnergy/CT/{mac_key}/cmnd/Restart",
+                    f"AlfaEnergy/CT/{mac_key}/cmnd/Upgrade",
+                    f"AlfaEnergy/CT/{mac_key}/cmnd/EnergyReset",
+                    f"AlfaEnergy/CT/{mac_key}/cmnd/WifiReset",
+                    f"AlfaEnergy/CT/{mac_key}/cmnd/Reset",
+                    "AlfaEnergy/CT/alfaenergy_ct_all/cmnd/Upgrade",
+                ]
+            self.cmb_pub_topic.addItems(topic_presets)
+            self.cmb_pub_topic.blockSignals(False)
+            self._on_pub_topic_changed(self.cmb_pub_topic.currentText())
 
     def _disable_cockpit(self):
+        self._current_pub_mac = None
         self.lbl_cockpit_name.setText("Select a Device")
         self.btn_location_pill.hide()
         self.lbl_cockpit_meta.setText("Choose a device from the fleet table to monitor live telemetry.")
-        self.btn_web_ui.setVisible(not getattr(self, "_is_read_only", False))
-        self.btn_web_ui.setEnabled(False)
+        if hasattr(self, "btn_web_ui"):
+            self.btn_web_ui.hide()
         self.btn_cmd_query.setEnabled(False)
-        self.btn_cmd_restart.setVisible(not getattr(self, "_is_read_only", False))
-        self.btn_cmd_restart.setEnabled(False)
-        self.btn_toggle_power.setEnabled(False)
-        self.btn_force_on.setEnabled(False)
-        self.btn_force_off.setEnabled(False)
+        if hasattr(self, "btn_cmd_restart"):
+            self.btn_cmd_restart.setEnabled(False)
+            self.btn_cmd_restart.hide()
+        if hasattr(self, "lbl_relay_badge"):
+            self.lbl_relay_badge.hide()
 
         self.cmb_pub_topic.blockSignals(True)
         self.cmb_pub_topic.clear()
@@ -1608,9 +1495,13 @@ class MqttMonitorView(QWidget):
         menu.addSeparator()
         act_query = menu.addAction("Query Status")
         act_restart = menu.addAction("Restart Device")
-        act_toggle = menu.addAction("Toggle Power")
+        menu.addSeparator()
+        act_toggle = menu.addAction("⚡ Toggle Power (ON/OFF)")
+        act_power_on = menu.addAction("🟢 Force Power ON")
+        act_power_off = menu.addAction("🔴 Force Power OFF")
+        act_web = None
         if dev.ip_address:
-            act_web = menu.addAction(f"Open Web UI ({dev.ip_address})")
+            act_web = menu.addAction(f"🌐 Buka Web UI ({dev.ip_address})")
         menu.addSeparator()
         act_delete = menu.addAction("Remove from Roster")
 
@@ -1623,6 +1514,10 @@ class MqttMonitorView(QWidget):
             self._confirm_and_publish(f"AlfaEnergy/{cat}/{mac_key}/cmnd/Restart", "1", dev.device_name)
         elif action == act_toggle:
             self._confirm_and_publish(f"AlfaEnergy/{cat}/{mac_key}/cmnd/Power", "TOGGLE", dev.device_name)
+        elif action == act_power_on:
+            self._confirm_and_publish(f"AlfaEnergy/{cat}/{mac_key}/cmnd/Power", "ON", dev.device_name)
+        elif action == act_power_off:
+            self._confirm_and_publish(f"AlfaEnergy/{cat}/{mac_key}/cmnd/Power", "OFF", dev.device_name)
         elif dev.ip_address and action == act_web:
             QDesktopServices.openUrl(QUrl(f"http://{dev.ip_address}"))
         elif action == act_delete:

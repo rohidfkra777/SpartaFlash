@@ -30,12 +30,16 @@ class SettingsView(QWidget):
         main_layout.setSpacing(14)
 
         # Header
+        title_box = QVBoxLayout()
+        title_box.setSpacing(3)
+        title_box.setContentsMargins(0, 0, 0, 0)
         lbl_title = QLabel("STATION CONFIGURATION & DIAGNOSTICS")
-        lbl_title.setStyleSheet("color: #38BDF8; font-size: 20px; font-weight: 800;")
+        lbl_title.setStyleSheet("color: #38BDF8; font-size: 18px; font-weight: 800; letter-spacing: 0.8px; font-family: 'Segoe UI', -apple-system, sans-serif;")
         lbl_sub = QLabel("Flashing parameters, safety protocols, operator metadata, and runtime dependencies")
-        lbl_sub.setStyleSheet("color: #94A3B8; font-size: 12px;")
-        main_layout.addWidget(lbl_title)
-        main_layout.addWidget(lbl_sub)
+        lbl_sub.setStyleSheet("color: #94A3B8; font-size: 11.5px; font-weight: 500; font-family: 'Segoe UI', -apple-system, sans-serif;")
+        title_box.addWidget(lbl_title)
+        title_box.addWidget(lbl_sub)
+        main_layout.addLayout(title_box)
 
         # Main Layout Grid / Split
         grid_layout = QHBoxLayout()

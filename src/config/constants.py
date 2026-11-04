@@ -102,7 +102,7 @@ PRODUCT_CT = "CT"
 
 PRODUCT_CONFIGS = {
     PRODUCT_PLUG: {
-        "display_name": "AlfaEnergy Smart Plug (Plug)",
+        "display_name": "Sparta Smart Plug",
         "category": PRODUCT_PLUG,
         "default_firmware": "AlfaEnergy_Plug.factory.bin",
         "flash_baud": 460800,
@@ -118,7 +118,7 @@ PRODUCT_CONFIGS = {
         "wiring_guide": "Power: 5V DC | Logic: 3.3V UART"
     },
     PRODUCT_CT: {
-        "display_name": "AlfaEnergy Current Transformer (CT)",
+        "display_name": "Sparta Smart CT",
         "category": PRODUCT_CT,
         "default_firmware": "AlfaEnergy_CT.factory.bin",
         "flash_baud": 460800,
