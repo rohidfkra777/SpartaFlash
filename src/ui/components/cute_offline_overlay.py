@@ -1,9 +1,10 @@
 """
-SpartaFlash - Cute Error 504 Offline Screen Overlay Component.
+SpartaFlash - Cute Error 504 Offline Screen Overlay Component (Option B: Autonomous Zero-Click).
 Developer: Rohidfkra777
 
 Delightful playful offline screen displayed when the workstation detects no internet
-connectivity during authentication or network barrier enforcement.
+connectivity during authentication. Features automatic background radar scanning,
+zero required button clicks, instant network recovery, and clean titlebar close support.
 """
 
 import math
@@ -18,19 +19,25 @@ from PySide6.QtGui import QPainter, QColor, QPen, QPainterPath
 class CuteMascotWidget(QWidget):
     """
     Cute animated offline robot/terminal with floating bob, blinking eyes,
-    curious glances, and a dangling disconnected power plug.
+    curious glances, and an animated dangling power plug.
+    When connected, antenna and eyes illuminate in emerald green (^ ^).
     """
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(130, 110)
+        self.setFixedSize(130, 105)
         self._tick = 0.0
         self._blink = False
         self._look_dir = 0.0
+        self._is_connected = False
 
         self._anim_timer = QTimer(self)
         self._anim_timer.setInterval(33)  # ~30 FPS
         self._anim_timer.timeout.connect(self._on_tick)
         self._anim_timer.start()
+
+    def set_connected(self, connected: bool = True):
+        self._is_connected = connected
+        self.update()
 
     def _on_tick(self):
         self._tick += 0.05
@@ -38,11 +45,14 @@ class CuteMascotWidget(QWidget):
         cycle = int(self._tick * 10) % 70
         self._blink = (cycle == 40 or cycle == 41)
 
-        # Eye glancing left and right looking for Wi-Fi
-        if 15 < cycle < 35:
-            self._look_dir = math.sin((cycle - 15) / 20 * math.pi) * 3.5
-        elif 45 < cycle < 65:
-            self._look_dir = -math.sin((cycle - 45) / 20 * math.pi) * 3.5
+        # Eye glancing left and right looking for Wi-Fi when disconnected
+        if not self._is_connected:
+            if 15 < cycle < 35:
+                self._look_dir = math.sin((cycle - 15) / 20 * math.pi) * 3.5
+            elif 45 < cycle < 65:
+                self._look_dir = -math.sin((cycle - 45) / 20 * math.pi) * 3.5
+            else:
+                self._look_dir = 0.0
         else:
             self._look_dir = 0.0
 
@@ -55,27 +65,33 @@ class CuteMascotWidget(QWidget):
         # Gentle floating hover
         float_y = math.sin(self._tick * 2.5) * 4.0
         center_x = self.width() / 2.0
-        base_y = 52.0 + float_y
+        base_y = 50.0 + float_y
 
         # 1. Subtle shadow under robot
         shadow_w = 54.0 - float_y * 1.5
         painter.setPen(Qt.NoPen)
         painter.setBrush(QColor(15, 23, 42, 140))
-        painter.drawEllipse(QPointF(center_x, 96), shadow_w / 2.0, 5.0)
+        painter.drawEllipse(QPointF(center_x, 94), shadow_w / 2.0, 5.0)
 
         # 2. Antenna with tiny radar ball
         ant_top_y = base_y - 42.0
         painter.setPen(QPen(QColor("#64748B"), 2.5, Qt.SolidLine, Qt.RoundCap))
         painter.drawLine(QPointF(center_x, base_y - 28), QPointF(center_x, ant_top_y))
 
-        # Antenna spark / disconnected signal
-        painter.setBrush(QColor("#EF4444"))
+        # Antenna spark: Green when online, Red when disconnected
+        spark_color = QColor("#10B981") if self._is_connected else QColor("#EF4444")
+        painter.setBrush(spark_color)
         painter.setPen(Qt.NoPen)
         painter.drawEllipse(QPointF(center_x, ant_top_y), 4.5, 4.5)
 
-        # Disconnected signal arcs (faint red)
+        # Disconnected or Connected signal arcs
         arc_pulse = (math.sin(self._tick * 4.0) + 1.0) / 2.0
-        arc_pen = QPen(QColor(239, 68, 68, int(100 + 120 * arc_pulse)), 1.8, Qt.SolidLine, Qt.RoundCap)
+        if self._is_connected:
+            arc_color = QColor(16, 185, 129, int(110 + 120 * arc_pulse))
+        else:
+            arc_color = QColor(239, 68, 68, int(100 + 120 * arc_pulse))
+
+        arc_pen = QPen(arc_color, 1.8, Qt.SolidLine, Qt.RoundCap)
         painter.setPen(arc_pen)
         painter.setBrush(Qt.NoBrush)
         painter.drawArc(int(center_x - 12), int(ant_top_y - 12), 24, 24, 45 * 16, 90 * 16)
@@ -90,29 +106,42 @@ class CuteMascotWidget(QWidget):
         body_path = QPainterPath()
         body_path.addRoundedRect(body_rect_x, body_rect_y, body_w, body_h, 12, 12)
         painter.fillPath(body_path, QColor("#1E293B"))
-        painter.strokePath(body_path, QPen(QColor("#38BDF8"), 2.0))
+
+        border_color = QColor("#34D399") if self._is_connected else QColor("#38BDF8")
+        painter.strokePath(body_path, QPen(border_color, 2.0))
 
         # 4. Cute Screen Face (Inner dark visor)
         visor_path = QPainterPath()
         visor_path.addRoundedRect(body_rect_x + 6, body_rect_y + 8, body_w - 12, 28, 7, 7)
         painter.fillPath(visor_path, QColor("#0B1120"))
 
-        # 5. Eyes (Cute expressive cyan dots or blinking happy slits)
+        # 5. Eyes
         eye_y = body_rect_y + 22.0
         eye_spacing = 11.0
         eye_left_x = center_x - eye_spacing + self._look_dir
         eye_right_x = center_x + eye_spacing + self._look_dir
 
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor("#38BDF8"))
+        if self._is_connected:
+            # Happy smiling eyes (^ ^)
+            painter.setPen(QPen(QColor("#34D399"), 2.2, Qt.SolidLine, Qt.RoundCap))
+            path_left = QPainterPath()
+            path_left.moveTo(eye_left_x - 4, eye_y + 2)
+            path_left.quadTo(eye_left_x, eye_y - 3, eye_left_x + 4, eye_y + 2)
+            painter.drawPath(path_left)
 
-        if self._blink:
+            path_right = QPainterPath()
+            path_right.moveTo(eye_right_x - 4, eye_y + 2)
+            path_right.quadTo(eye_right_x, eye_y - 3, eye_right_x + 4, eye_y + 2)
+            painter.drawPath(path_right)
+        elif self._blink:
             # Closed eyes (cute happy slits)
             painter.setPen(QPen(QColor("#38BDF8"), 2.2, Qt.SolidLine, Qt.RoundCap))
             painter.drawLine(QPointF(eye_left_x - 3, eye_y), QPointF(eye_left_x + 3, eye_y))
             painter.drawLine(QPointF(eye_right_x - 3, eye_y), QPointF(eye_right_x + 3, eye_y))
         else:
             # Round big eyes with sparkle shine
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor("#38BDF8"))
             painter.drawEllipse(QPointF(eye_left_x, eye_y), 4.2, 4.8)
             painter.drawEllipse(QPointF(eye_right_x, eye_y), 4.2, 4.8)
             painter.setBrush(QColor("#FFFFFF"))
@@ -121,7 +150,8 @@ class CuteMascotWidget(QWidget):
 
         # 6. Cute small blushing cheeks (soft coral pink)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(244, 63, 94, 90))
+        cheek_color = QColor(244, 63, 94, 130) if self._is_connected else QColor(244, 63, 94, 90)
+        painter.setBrush(cheek_color)
         painter.drawEllipse(QPointF(center_x - 17, eye_y + 5.5), 3.5, 2.0)
         painter.drawEllipse(QPointF(center_x + 17, eye_y + 5.5), 3.5, 2.0)
 
@@ -134,8 +164,9 @@ class CuteMascotWidget(QWidget):
         painter.setPen(QPen(QColor("#64748B"), 2.0, Qt.SolidLine, Qt.RoundCap))
         painter.drawLine(QPointF(cable_start_x, cable_start_y), QPointF(cable_end_x, cable_end_y))
 
-        # Plug head
-        painter.setBrush(QColor("#EF4444"))
+        # Plug head (green when restored, red when disconnected)
+        plug_color = QColor("#10B981") if self._is_connected else QColor("#EF4444")
+        painter.setBrush(plug_color)
         painter.setPen(Qt.NoPen)
         painter.drawRoundedRect(int(cable_end_x), int(cable_end_y - 4), 9, 8, 2, 2)
         # Prongs
@@ -147,12 +178,13 @@ class CuteMascotWidget(QWidget):
 class CuteOfflineOverlay(QFrame):
     """
     Playful Error 504 Offline Screen overlay with animated mascot,
-    status details, and interactive retry / return controls.
+    live autonomous radar scanning (Option B - Zero Button), and auto-redirect.
     """
     def __init__(self, on_retry_callback: Callable[[], bool], on_back_callback: Callable[[], None], parent=None):
         super().__init__(parent)
         self.on_retry_callback = on_retry_callback
         self.on_back_callback = on_back_callback
+        self._dots_step = 0
 
         self.setStyleSheet("""
             QFrame {
@@ -162,7 +194,7 @@ class CuteOfflineOverlay(QFrame):
         """)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 22)
+        layout.setContentsMargins(24, 18, 24, 20)
         layout.setSpacing(0)
         layout.setAlignment(Qt.AlignCenter)
 
@@ -174,36 +206,32 @@ class CuteOfflineOverlay(QFrame):
         layout.addLayout(mascot_box)
         layout.addSpacing(6)
 
-        # 2. Big 504 Code Pill
-        code_box = QHBoxLayout()
-        code_box.setAlignment(Qt.AlignCenter)
-
+        # 2. Big 504 Code
         lbl_code = QLabel("ERROR 504")
         lbl_code.setAlignment(Qt.AlignCenter)
         lbl_code.setStyleSheet("""
             color: #EF4444;
-            font-size: 22px;
+            font-size: 20px;
             font-weight: 900;
             letter-spacing: 1.5px;
             font-family: 'Segoe UI', -apple-system, sans-serif;
         """)
-        code_box.addWidget(lbl_code)
-        layout.addLayout(code_box)
+        layout.addWidget(lbl_code)
         layout.addSpacing(4)
 
-        # 3. Funny Catchy Headline
+        # 3. Friendly Headline
         lbl_title = QLabel("Sinyal Kabur Nih! 📡")
         lbl_title.setAlignment(Qt.AlignCenter)
         lbl_title.setStyleSheet("""
             color: #F8FAFC;
-            font-size: 14px;
+            font-size: 13.5px;
             font-weight: 800;
             letter-spacing: 0.3px;
         """)
         layout.addWidget(lbl_title)
         layout.addSpacing(6)
 
-        # 4. Friendly Subtitle
+        # 4. Description
         lbl_desc = QLabel(
             "Workstation mendeteksi kabel LAN lepas atau Wi-Fi lagi ngambek.\n"
             "Sambungkan internet stasiun agar kredensial dapat diverifikasi."
@@ -212,96 +240,119 @@ class CuteOfflineOverlay(QFrame):
         lbl_desc.setAlignment(Qt.AlignCenter)
         lbl_desc.setStyleSheet("""
             color: #94A3B8;
-            font-size: 11px;
+            font-size: 10.5px;
             line-height: 140%;
             font-weight: 500;
         """)
         layout.addWidget(lbl_desc)
-        layout.addSpacing(18)
+        layout.addSpacing(16)
 
-        # 5. Status Feedback Label (when testing)
-        self.lbl_feedback = QLabel("")
-        self.lbl_feedback.setAlignment(Qt.AlignCenter)
-        self.lbl_feedback.setFixedHeight(18)
-        self.lbl_feedback.setStyleSheet("color: #F59E0B; font-size: 11px; font-weight: 700;")
-        layout.addWidget(self.lbl_feedback)
-        layout.addSpacing(10)
+        # 5. Live Auto-Scanning Radar Badge (Zero Buttons Design)
+        self.frame_scanner = QFrame()
+        self.frame_scanner.setObjectName("frameRadarScanner")
+        self.frame_scanner.setFixedHeight(46)
+        self.frame_scanner.setStyleSheet("""
+            QFrame#frameRadarScanner {
+                background-color: #0F172A;
+                border: 1px solid #1E293B;
+                border-radius: 8px;
+            }
+        """)
+        scan_l = QHBoxLayout(self.frame_scanner)
+        scan_l.setContentsMargins(14, 8, 14, 8)
+        scan_l.setSpacing(10)
 
-        # 6. Action Buttons
-        btn_box = QHBoxLayout()
-        btn_box.setSpacing(10)
+        self.lbl_radar_icon = QLabel("📡")
+        self.lbl_radar_icon.setStyleSheet("font-size: 16px;")
+        scan_l.addWidget(self.lbl_radar_icon)
 
+        self.lbl_scanner_status = QLabel("Memindai sinyal internet stasiun...")
+        self.lbl_scanner_status.setStyleSheet("""
+            color: #38BDF8;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            font-family: 'Segoe UI', -apple-system, sans-serif;
+        """)
+        scan_l.addWidget(self.lbl_scanner_status, stretch=1)
+        layout.addWidget(self.frame_scanner)
+        layout.addSpacing(12)
+
+        # 6. Escape Hatch Micro-Hint
+        lbl_hint = QLabel("Aplikasi otomatis kembali ke login saat terhubung  •  Tekan Esc / [X] untuk keluar")
+        lbl_hint.setAlignment(Qt.AlignCenter)
+        lbl_hint.setStyleSheet("color: #64748B; font-size: 9px; font-weight: 500;")
+        layout.addWidget(lbl_hint)
+
+        # Hidden programmatic buttons preserved for test / API backward compatibility
         self.btn_back = QPushButton("Kembali")
-        self.btn_back.setCursor(Qt.PointingHandCursor)
-        self.btn_back.setFixedHeight(38)
-        self.btn_back.setStyleSheet("""
-            QPushButton {
-                background-color: #1E293B;
-                color: #94A3B8;
-                border: 1px solid #334155;
-                border-radius: 6px;
-                padding: 0 16px;
-                font-weight: 700;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #334155;
-                color: #F8FAFC;
-            }
-        """)
+        self.btn_back.setVisible(False)
         self.btn_back.clicked.connect(self.on_back_callback)
-        btn_box.addWidget(self.btn_back)
 
-        self.btn_retry = QPushButton("🔄 Coba Sambungkan Lagi")
-        self.btn_retry.setCursor(Qt.PointingHandCursor)
-        self.btn_retry.setFixedHeight(38)
-        self.btn_retry.setStyleSheet("""
-            QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284C7, stop:1 #0369A1);
-                color: #FFFFFF;
-                border: 1px solid #38BDF8;
-                border-radius: 6px;
-                padding: 0 18px;
-                font-weight: 700;
-                font-size: 12.5px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #38BDF8, stop:1 #0284C7);
-            }
-            QPushButton:disabled {
-                background: #1E293B;
-                color: #64748B;
-                border: 1px solid #334155;
+        self.btn_retry = QPushButton("Coba Sambungkan Lagi")
+        self.btn_retry.setVisible(False)
+        self.btn_retry.clicked.connect(self._trigger_retry)
+
+        # Pulse Dots Timer for Live Scanning
+        self._dots_timer = QTimer(self)
+        self._dots_timer.setInterval(450)
+        self._dots_timer.timeout.connect(self._on_dots_tick)
+        self._dots_timer.start()
+
+    def _on_dots_tick(self):
+        if self.mascot._is_connected:
+            return
+        self._dots_step = (self._dots_step + 1) % 4
+        dots = "." * self._dots_step
+        self.lbl_scanner_status.setText(f"Memindai sinyal internet stasiun{dots}")
+
+    def show_connected_success(self):
+        """Displays connected state with vibrant emerald theme before auto-redirecting."""
+        if hasattr(self, "_dots_timer"):
+            self._dots_timer.stop()
+        self.mascot.set_connected(True)
+        self.lbl_radar_icon.setText("⚡")
+        self.lbl_scanner_status.setText("Internet Terhubung! Mengalihkan ke login...")
+        self.lbl_scanner_status.setStyleSheet("""
+            color: #34D399;
+            font-size: 11.5px;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+            font-family: 'Segoe UI', -apple-system, sans-serif;
+        """)
+        self.frame_scanner.setStyleSheet("""
+            QFrame#frameRadarScanner {
+                background-color: rgba(16, 185, 129, 0.12);
+                border: 1px solid rgba(16, 185, 129, 0.4);
+                border-radius: 8px;
             }
         """)
-        self.btn_retry.clicked.connect(self._trigger_retry)
-        btn_box.addWidget(self.btn_retry, stretch=1)
-
-        layout.addLayout(btn_box)
 
     def reset_state(self):
-        """Resets feedback and button state when overlay becomes visible."""
-        self.lbl_feedback.setText("")
-        self.btn_retry.setEnabled(True)
-        self.btn_retry.setText("🔄 Coba Sambungkan Lagi")
+        """Resets feedback and radar scanner state when overlay becomes visible."""
+        self.mascot.set_connected(False)
+        self.lbl_radar_icon.setText("📡")
+        self.lbl_scanner_status.setText("Memindai sinyal internet stasiun...")
+        self.lbl_scanner_status.setStyleSheet("""
+            color: #38BDF8;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            font-family: 'Segoe UI', -apple-system, sans-serif;
+        """)
+        self.frame_scanner.setStyleSheet("""
+            QFrame#frameRadarScanner {
+                background-color: #0F172A;
+                border: 1px solid #1E293B;
+                border-radius: 8px;
+            }
+        """)
+        if hasattr(self, "_dots_timer") and not self._dots_timer.isActive():
+            self._dots_timer.start()
 
     def _trigger_retry(self):
-        self.btn_retry.setEnabled(False)
-        self.btn_retry.setText("⏳ Memeriksa Jaringan...")
-        self.lbl_feedback.setText("Melakukan ping ke gateway stasiun...")
-        self.lbl_feedback.setStyleSheet("color: #38BDF8; font-size: 11px; font-weight: 600;")
-        QTimer.singleShot(600, self._perform_check)
-
-    def _perform_check(self):
         if self.on_retry_callback:
             online = self.on_retry_callback()
             if online:
-                self.lbl_feedback.setText("✅ Jaringan Terhubung! Kembali ke login...")
-                self.lbl_feedback.setStyleSheet("color: #34D399; font-size: 11px; font-weight: 800;")
+                self.show_connected_success()
                 QTimer.singleShot(600, self.on_back_callback)
-            else:
-                self.btn_retry.setEnabled(True)
-                self.btn_retry.setText("🔄 Coba Sambungkan Lagi")
-                self.lbl_feedback.setText("Masih belum ada sinyal, periksa kabel lagi ya! 🔌")
-                self.lbl_feedback.setStyleSheet("color: #EF4444; font-size: 11px; font-weight: 700;")
-

@@ -48,7 +48,7 @@ class LoginDialog(QDialog):
         self.is_switch_user = is_switch_user
         self.setWindowTitle(f"Station Login - {APP_NAME}")
         self.setFixedSize(380, 400)
-        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
+        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
         self.setStyleSheet("""
             QDialog {
                 background-color: #0B1120;
@@ -63,10 +63,21 @@ class LoginDialog(QDialog):
         self._countdown_timer = QTimer(self)
         self._countdown_timer.setInterval(1000)
         self._countdown_timer.timeout.connect(self._update_lockout_timer)
+        self.auto_redirect_delay_ms = 600
+
+        self._offline_poll_timer = QTimer(self)
+        self._offline_poll_timer.setInterval(1500)
+        self._offline_poll_timer.timeout.connect(self._check_offline_auto_recovery)
 
         self._init_ui()
 
-        
+        # Connect silent network guard signals
+        network_guard.sig_connectivity_changed.connect(self._on_connectivity_changed)
+        network_guard.start_monitoring()
+
+        # Silent initial sync if online
+        if network_guard.is_online:
+            pass
 
     def _init_ui(self):
         self.root_stack = QStackedLayout(self)
@@ -261,13 +272,42 @@ class LoginDialog(QDialog):
         self.txt_username.setFocus()
         self._check_lockout()
 
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape:
+            self.reject()
+            return
+        super().keyPressEvent(event)
+
     def show_offline_overlay(self):
         self.page_offline.reset_state()
         self.root_stack.setCurrentIndex(1)
+        if hasattr(self, "_offline_poll_timer") and not self._offline_poll_timer.isActive():
+            self._offline_poll_timer.start()
 
     def hide_offline_overlay(self):
+        if hasattr(self, "_offline_poll_timer"):
+            self._offline_poll_timer.stop()
         self.root_stack.setCurrentIndex(0)
         self.txt_username.setFocus()
+
+    def _check_offline_auto_recovery(self):
+        if self.root_stack.currentIndex() != 1:
+            self._offline_poll_timer.stop()
+            return
+        if network_guard.check_now_sync(timeout=0.8):
+            self._trigger_auto_reconnect()
+
+    def _trigger_auto_reconnect(self, immediate: bool = False):
+        if hasattr(self, "_offline_poll_timer"):
+            self._offline_poll_timer.stop()
+        if hasattr(self, "page_offline"):
+            self.page_offline.show_connected_success()
+        pass
+        delay = getattr(self, "auto_redirect_delay_ms", 600)
+        if immediate or delay <= 0:
+            self.hide_offline_overlay()
+        else:
+            QTimer.singleShot(delay, self.hide_offline_overlay)
 
     def _on_offline_retry(self) -> bool:
         return True
@@ -276,7 +316,10 @@ class LoginDialog(QDialog):
         self.hide_offline_overlay()
 
     def _on_connectivity_changed(self, is_online: bool):
-        pass
+        if is_online:
+            pass
+            if hasattr(self, "root_stack") and self.root_stack.currentIndex() == 1:
+                self._trigger_auto_reconnect()
 
     def _attach_password_toggle(self, line_edit: QLineEdit):
         icon_eye = IconProvider.get_icon("eye", "#64748B", 15)
