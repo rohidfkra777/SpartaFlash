@@ -16,7 +16,7 @@ from PySide6.QtGui import QPixmap, QPainter, QPainterPath, QImage
 from src.config.constants import (
     PRODUCT_PLUG, PRODUCT_CT, PRODUCT_CONFIGS,
     STATUS_READY, STATUS_ERASING, STATUS_FLASHING, STATUS_VERIFYING, STATUS_PASS, STATUS_FAIL, STATUS_CANCELLED,
-    DEVELOPER_FOOTER_TEXT, DEVELOPER_GITHUB, APP_VERSION
+    DEVELOPER_FOOTER_TEXT, DEVELOPER_GITHUB, APP_VERSION, BASE_DIR
 )
 from src.config.settings import settings_manager
 from src.services.firmware_service import FirmwareService, FirmwareInfo
@@ -475,7 +475,11 @@ class DashboardView(QWidget):
     def _update_product_hero_image(self):
         """Updates the product hero banner image according to selected category."""
         category = self.cmb_product.currentData()
-        assets_dir = Path(__file__).resolve().parent.parent.parent / "assets"
+        assets_dir = BASE_DIR / "assets"
+        if not assets_dir.exists():
+            assets_dir = BASE_DIR / "_internal" / "assets"
+        if not assets_dir.exists():
+            assets_dir = Path(__file__).resolve().parent.parent.parent / "assets"
         
         if category == PRODUCT_CT or "ct" in str(category).lower():
             candidates = [
