@@ -3,12 +3,25 @@ SpartaFlash - Terminal Widget Component.
 Developer: Rohidfkra777
 """
 
+import random
+import textwrap
 from PySide6.QtWidgets import (
     QFrame, QVBoxLayout, QHBoxLayout, QLabel,
     QPlainTextEdit, QPushButton, QCheckBox, QApplication
 )
 from PySide6.QtGui import QTextCursor
 from PySide6.QtCore import Qt
+
+SPARTABOT_QUOTES = [
+    "Colok kabelnya yang pas ya kak, jangan sampai ketuker pin 3.3V sama 5V... nanti aku kepanasan! 🔥",
+    "Pastikan kabel USB nancep kenceng ya! Jangan senggol-senggol meja pas flashing lagi jalan! ⚡",
+    "Semangat kerjanya kak operator! Bismillah dulu biar ESP32-nya gak kena kutukan bootloop! ✨",
+    "SpartaBot udah siap tempur nih! Target hari ini pantang pulang sebelum semua unit PASS! 🎯",
+    "Kabel TX ke RX, kabel RX ke TX... awas jangan sampai kebalik ya kak, nanti kita saling membisu! 🔌",
+    "Ngopi dulu boleh kak biar makin fokus, tapi kabel USB jangan sampai kesiram kopi ya! ☕",
+    "Satu unit lagi menuju target! Santai tapi pasti, teliti demi kualitas perangkat terbaik! 🚀",
+    "SpartaBot standby 24/7! Sensor energi siap dipasangkan ke dalam chip pintar! 💡",
+]
 
 class TerminalWidget(QFrame):
     """Terminal console widget for streaming esptool and flashing logs."""
@@ -53,7 +66,7 @@ class TerminalWidget(QFrame):
         self.btn_clear.setProperty("class", "btn-secondary")
         self.btn_clear.setFixedHeight(28)
         self.btn_clear.setCursor(Qt.PointingHandCursor)
-        self.btn_clear.clicked.connect(self.clear_log)
+        self.btn_clear.clicked.connect(lambda: self.clear_log(with_greeting=True))
 
         header_layout.addWidget(lbl_header)
         header_layout.addStretch()
@@ -70,13 +83,40 @@ class TerminalWidget(QFrame):
         layout.addLayout(header_layout)
         layout.addWidget(self.txt_terminal)
 
+        # Show initial randomized cute greeting from SpartaBot
+        self.show_welcome_greeting()
+
+    def show_welcome_greeting(self):
+        """Displays randomized witty greeting from SpartaBot."""
+        quote = random.choice(SPARTABOT_QUOTES)
+        box_w = 54
+        border_top = "╭" + "─" * (box_w - 2) + "╮"
+        border_bot = "╰" + "─" * (box_w - 2) + "╯"
+
+        header = "│  🤖 Halo Kak Operator! SpartaBot Siap Tempur! ⚡"
+        header_padded = header + " " * max(0, box_w - len(header) - 1) + "│"
+
+        lines = [border_top, header_padded]
+        wrapped = textwrap.wrap(f'"{quote}"', width=box_w - 6)
+        for q_line in wrapped:
+            content = "│  " + q_line
+            padded = content + " " * max(0, box_w - len(content) - 1) + "│"
+            lines.append(padded)
+        lines.append(border_bot)
+        lines.append("[*] Sistem workstation siap siaga. Auto-scan port serial aktif! 🔌")
+        lines.append("[*] Hubungkan kabel USB-UART ke target device lalu klik [START FLASHING]... ✨\n")
+
+        self.txt_terminal.setPlainText("\n".join(lines))
+
     def append_line(self, line: str):
         self.txt_terminal.appendPlainText(line)
         if self.chk_autoscroll.isChecked():
             self.txt_terminal.moveCursor(QTextCursor.End)
 
-    def clear_log(self):
+    def clear_log(self, with_greeting: bool = False):
         self.txt_terminal.clear()
+        if with_greeting:
+            self.show_welcome_greeting()
 
     def copy_log(self):
         clipboard = QApplication.clipboard()

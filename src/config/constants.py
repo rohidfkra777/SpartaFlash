@@ -71,7 +71,7 @@ CLOUD_FIRMWARE_URLS = {
 }
 
 # MQTT Broker & Live Control Constants (Industrial IoT Infrastructure - Production Fleet)
-DEFAULT_MQTT_BROKER = "103.127.99.241"
+DEFAULT_MQTT_BROKER = os.getenv("MQTT_BROKER", "127.0.0.1")
 DEFAULT_MQTT_PORT = 1883
 DEFAULT_MQTT_USER = "sparta-ganteng"
 DEFAULT_MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
