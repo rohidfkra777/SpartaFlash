@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/rohidfkra777/SpartaFlash/releases/tag/v1.2.1"><img src="https://img.shields.io/badge/Release-v1.2.1-0284C7.svg?style=for-the-badge&logo=windows" alt="Release"/></a>
+  <a href="https://github.com/rohidfkra777/SpartaFlash/releases/tag/v1.2.2"><img src="https://img.shields.io/badge/Release-v1.2.2-0284C7.svg?style=for-the-badge&logo=windows" alt="Release"/></a>
   <a href="https://github.com/rohidfkra777/SpartaFlash"><img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011%20x64-0078D6.svg?style=for-the-badge&logo=windows" alt="Platform"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Proprietary-EF4444.svg?style=for-the-badge" alt="License"/></a>
 </p>
@@ -47,8 +47,8 @@ SpartaFlash/
 ```
 
 ### Official Windows Installer (.exe):
-Download the latest verified setup installer from [**GitHub Releases**](https://github.com/rohidfkra777/SpartaFlash/releases/tag/v1.2.1):
-* **Package**: `SpartaFlash_Setup_v1.2.1_Windows_x64.exe`
+Download the latest verified setup installer from [**GitHub Releases**](https://github.com/rohidfkra777/SpartaFlash/releases/tag/v1.2.2):
+* **Package**: `SpartaFlash_Setup_v1.2.2_Windows_x64.exe`
 * **Target System**: Windows 10 / 11 (64-bit)
 * **Installation**: Per-user setup (installs to `%LOCALAPPDATA%\Programs\SpartaFlash` without requiring Administrator privileges).
 
@@ -82,7 +82,7 @@ Download the latest verified setup installer from [**GitHub Releases**](https://
 ## 👨‍💻 Developer & Attribution
 
 - **Application**: SpartaFlash
-- **Version**: `1.2.1`
+- **Version**: `1.2.2`
 - **Lead Developer**: **Rohidfkra777** ([GitHub Profile](https://github.com/rohidfkra777) | [Email](mailto:rohidfkra.unp@gmail.com))
 - **Repository**: [https://github.com/rohidfkra777/SpartaFlash](https://github.com/rohidfkra777/SpartaFlash)
 - **Copyright**: © 2026 Rohidfkra777. All rights reserved.

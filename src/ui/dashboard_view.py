@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QFrame, QMessageBox
 )
 from PySide6.QtCore import Qt, Signal, QSize, QTimer
-from PySide6.QtGui import QPixmap, QPainter, QPainterPath
+from PySide6.QtGui import QPixmap, QPainter, QPainterPath, QImage
 
 from src.config.constants import (
     PRODUCT_PLUG, PRODUCT_CT, PRODUCT_CONFIGS,
@@ -181,7 +181,7 @@ class DashboardView(QWidget):
         self.frame_hero_prod.setObjectName("frameHeroProd")
         self.frame_hero_prod.setStyleSheet("""
             QFrame#frameHeroProd {
-                background-color: #0B1120;
+                background-color: #000000;
                 border: 1px solid #1E293B;
                 border-radius: 8px;
             }
@@ -409,37 +409,95 @@ class DashboardView(QWidget):
         work_layout.addLayout(right_panel, stretch=1)
         main_layout.addLayout(work_layout, stretch=1)
 
+    def _get_hero_pixmap(self, img_path: Path, target_w: int = 340, target_h: int = 130) -> QPixmap:
+        """Loads and auto-frames product hero image with smart content bounding box detection."""
+        cache_key = f"{img_path.resolve()}_{target_w}_{target_h}"
+        if not hasattr(self, "_hero_cache"):
+            self._hero_cache = {}
+        if cache_key in self._hero_cache:
+            return self._hero_cache[cache_key]
+
+        qimg = QImage(str(img_path))
+        w, h = qimg.width(), qimg.height()
+        if w == 0 or h == 0:
+            pix = QPixmap(str(img_path))
+            return pix.scaled(target_w, target_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        # Smart content bounding box detection for studio solid dark backgrounds
+        thresh = 12
+        top, bottom = 0, h - 1
+        left, right = 0, w - 1
+
+        for y in range(0, h, 4):
+            if any((qimg.pixelColor(x, y).red() > thresh or qimg.pixelColor(x, y).green() > thresh or qimg.pixelColor(x, y).blue() > thresh) for x in range(0, w, 8)):
+                top = max(0, y - 6)
+                break
+
+        for y in range(h - 1, 0, -4):
+            if any((qimg.pixelColor(x, y).red() > thresh or qimg.pixelColor(x, y).green() > thresh or qimg.pixelColor(x, y).blue() > thresh) for x in range(0, w, 8)):
+                bottom = min(h - 1, y + 6)
+                break
+
+        for x in range(0, w, 4):
+            if any((qimg.pixelColor(x, y).red() > thresh or qimg.pixelColor(x, y).green() > thresh or qimg.pixelColor(x, y).blue() > thresh) for y in range(top, bottom, 8)):
+                left = max(0, x - 6)
+                break
+
+        for x in range(w - 1, 0, -4):
+            if any((qimg.pixelColor(x, y).red() > thresh or qimg.pixelColor(x, y).green() > thresh or qimg.pixelColor(x, y).blue() > thresh) for y in range(top, bottom, 8)):
+                right = min(w - 1, x + 6)
+                break
+
+        bh = bottom - top
+        if bh > 20:
+            ratio = target_w / target_h
+            pad_y = int(bh * 0.08)
+            y0 = max(0, top - pad_y)
+            y1 = min(h, bottom + pad_y)
+            ch = y1 - y0
+            cw = int(ch * ratio)
+
+            cx = (left + right) // 2
+            x0 = max(0, cx - cw // 2)
+            x1 = min(w, x0 + cw)
+            if x1 - x0 < cw and x0 > 0:
+                x0 = max(0, x1 - cw)
+
+            cropped = qimg.copy(x0, y0, x1 - x0, y1 - y0)
+            scaled = cropped.scaled(target_w, target_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pix = QPixmap.fromImage(scaled)
+        else:
+            pix = QPixmap.fromImage(qimg).scaled(target_w, target_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        self._hero_cache[cache_key] = pix
+        return pix
+
     def _update_product_hero_image(self):
         """Updates the product hero banner image according to selected category."""
         category = self.cmb_product.currentData()
         assets_dir = Path(__file__).resolve().parent.parent.parent / "assets"
         
         if category == PRODUCT_CT or "ct" in str(category).lower():
-            img_path = assets_dir / "CT.png"
-            if not img_path.exists():
-                img_path = assets_dir / "CT.jpg"
+            candidates = [
+                assets_dir / "Spart Smart CT.jpg",
+                assets_dir / "Sparta Smart CT.jpg",
+                assets_dir / "Sparta Smart CT.png",
+                assets_dir / "CT.png",
+                assets_dir / "CT.jpg",
+            ]
         else:
-            img_path = assets_dir / "Plug.png"
-            if not img_path.exists():
-                img_path = assets_dir / "Plug.jpg"
+            candidates = [
+                assets_dir / "Sparta Smart Plug.jpg",
+                assets_dir / "Sparta Smart Plug.png",
+                assets_dir / "Plug.png",
+                assets_dir / "Plug.jpg",
+            ]
+
+        img_path = next((p for p in candidates if p.exists()), candidates[0])
 
         if img_path.exists():
-            target_w = 340
-            target_h = 130
-            pix = QPixmap(str(img_path))
-            scaled = pix.scaled(target_w, target_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-
-            out = QPixmap(target_w, target_h)
-            out.fill(Qt.transparent)
-            painter = QPainter(out)
-            painter.setRenderHint(QPainter.Antialiasing)
-            painter.setRenderHint(QPainter.SmoothPixmapTransform)
-            x = (target_w - scaled.width()) // 2
-            y = (target_h - scaled.height()) // 2
-            painter.drawPixmap(x, y, scaled)
-            painter.end()
-
-            self.lbl_hero_img.setPixmap(out)
+            pix = self._get_hero_pixmap(img_path, 340, 130)
+            self.lbl_hero_img.setPixmap(pix)
         else:
             self.lbl_hero_img.setText(f"[Gambar Produk: {img_path.name}]")
             self.lbl_hero_img.setStyleSheet("color: #64748B; font-size: 11px;")
