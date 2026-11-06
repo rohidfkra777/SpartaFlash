@@ -8,7 +8,7 @@ from typing import Optional, List
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QPushButton, QComboBox, QProgressBar,
-    QFrame, QMessageBox
+    QFrame, QMessageBox, QCheckBox
 )
 from PySide6.QtCore import Qt, Signal, QSize, QTimer
 from PySide6.QtGui import QPixmap, QPainter, QPainterPath, QImage
@@ -33,7 +33,7 @@ from src.ui.components.terminal_widget import TerminalWidget
 from src.ui.components.safety_dialog import SafetyDialog
 from src.ui.components.icon_provider import IconProvider
 from src.services.auth_service import auth_service
-
+from src.services.telemetry_diagnostic_service import telemetry_service
 from src.services.activity_log_service import activity_logger, ActivityCategory, ActivityStatus
 from src.services.sound_service import sound_service
 
@@ -50,6 +50,11 @@ class DashboardView(QWidget):
         self.cloud_worker: Optional[CloudSyncWorker] = None
         self.current_firmware_info: Optional[FirmwareInfo] = None
         self.custom_firmware_path: Optional[Path] = None
+        self._last_flashed_device: Optional[str] = None
+        self._auto_flash_pending_device: Optional[str] = None
+        self._auto_flash_debounce_timer = QTimer(self)
+        self._auto_flash_debounce_timer.setSingleShot(True)
+        self._auto_flash_debounce_timer.timeout.connect(self._execute_auto_flash)
 
         self._init_ui()
         self._update_product_hero_image()
@@ -298,6 +303,14 @@ class DashboardView(QWidget):
         left_layout.addStretch()
 
         # Action Trigger Buttons
+        self.chk_auto_flash = QCheckBox("Auto-Flash")
+        self.chk_auto_flash.setObjectName("chkAutoFlash")
+        self.chk_auto_flash.setToolTip("Flashing otomatis saat kabel USB ESP32 dicolok tanpa klik tombol")
+        self.chk_auto_flash.setChecked(bool(settings_manager.get("auto_flash_mode", False)))
+        self.chk_auto_flash.toggled.connect(self._on_auto_flash_toggled)
+        left_layout.addWidget(self.chk_auto_flash)
+        left_layout.addSpacing(4)
+
         self.btn_start = QPushButton("  START FLASHING")
         self.btn_start.setIcon(IconProvider.get_icon("zap", color="#FFFFFF", size=20))
         self.btn_start.setIconSize(QSize(20, 20))
@@ -666,6 +679,9 @@ class DashboardView(QWidget):
 
         # Handle empty ports state with no-flicker guard
         if not ports:
+            self._last_flashed_device = None
+            self._auto_flash_pending_device = None
+            self._auto_flash_debounce_timer.stop()
             if self.cmb_ports.count() == 1 and self.cmb_ports.itemData(0) is None:
                 return
             self.cmb_ports.blockSignals(True)
@@ -685,6 +701,11 @@ class DashboardView(QWidget):
                 current_devices.append(p_data.device)
 
         new_devices = [p.device for p in ports]
+
+        # Reset latch if previously flashed device was physically unplugged
+        if self._last_flashed_device and self._last_flashed_device not in new_devices:
+            self._last_flashed_device = None
+
         # If port list hasn't changed, skip reload to prevent UI flicker
         if current_devices == new_devices:
             return
@@ -724,6 +745,86 @@ class DashboardView(QWidget):
 
         self._on_port_changed()
         self._check_can_start()
+
+        # Auto-Flash Trigger (Continuous Zero-Click Flow)
+        if self.chk_auto_flash.isChecked() and newly_added:
+            inserted_port = newly_added[-1].device
+            if (not self.worker or not self.worker.isRunning()) and (inserted_port != self._last_flashed_device):
+                self._auto_flash_pending_device = inserted_port
+                self.terminal.append_line(f"[AUTO-FLASH] 🔌 Terdeteksi {inserted_port}. Menstabilkan port (600ms)...")
+                self._auto_flash_debounce_timer.start(600)
+
+    def _on_auto_flash_toggled(self, checked: bool):
+        """Handles operator toggling Auto-Flash mode with safety prompt on first use."""
+        if checked:
+            warned = settings_manager.get("auto_flash_warned", False)
+            if not warned:
+                reply = QMessageBox.warning(
+                    self,
+                    "Konfirmasi Mode Auto-Flash",
+                    "Mode Auto-Flash akan langsung memulai proses flashing otomatis segera setelah kabel USB ESP32 terdeteksi (tanpa konfirmasi pop-up).\n\n"
+                    "PERINGATAN KESELAMATAN KERJA:\n"
+                    "Pastikan modul / PCB sama sekali TIDAK terhubung ke sumber listrik AC 220V atau sumber daya eksternal bertegangan tinggi!\n\n"
+                    "Apakah Anda yakin ingin mengaktifkan mode Auto-Flash?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                if reply != QMessageBox.Yes:
+                    self.chk_auto_flash.blockSignals(True)
+                    self.chk_auto_flash.setChecked(False)
+                    self.chk_auto_flash.blockSignals(False)
+                    return
+                settings_manager.set("auto_flash_warned", True)
+
+            activity_logger.log(
+                category=ActivityCategory.CONFIG,
+                action="AUTO_FLASH_ENABLED",
+                details="Zero-click continuous flow auto-flash activated by operator",
+                status=ActivityStatus.INFO
+            )
+            self.terminal.append_line("[AUTO-FLASH] ✓ Mode Auto-Flash aktif. Colok kabel USB untuk memulai otomatis.")
+        else:
+            activity_logger.log(
+                category=ActivityCategory.CONFIG,
+                action="AUTO_FLASH_DISABLED",
+                details="Auto-flash deactivated by operator",
+                status=ActivityStatus.INFO
+            )
+            self.terminal.append_line("[AUTO-FLASH] Mode Auto-Flash dinonaktifkan.")
+            self._auto_flash_debounce_timer.stop()
+            self._auto_flash_pending_device = None
+
+        settings_manager.set("auto_flash_mode", checked)
+
+    def _execute_auto_flash(self):
+        """Debounced execution of zero-click flashing when USB insertion is stabilized."""
+        if not self.chk_auto_flash.isChecked():
+            return
+        if self.worker and self.worker.isRunning():
+            return
+
+        target_dev = self._auto_flash_pending_device
+        self._auto_flash_pending_device = None
+
+        current_port: Optional[SerialPortInfo] = self.cmb_ports.currentData()
+        if not current_port or (target_dev and current_port.device != target_dev):
+            for i in range(self.cmb_ports.count()):
+                p = self.cmb_ports.itemData(i)
+                if p and p.device == target_dev:
+                    self.cmb_ports.setCurrentIndex(i)
+                    current_port = p
+                    break
+
+        if not current_port:
+            return
+
+        if not self.current_firmware_info or not self.current_firmware_info.is_valid:
+            self.terminal.append_line("[AUTO-FLASH] ✗ Flashing dibatalkan: Firmware image belum siap.")
+            return
+
+        self._last_flashed_device = current_port.device
+        self.terminal.append_line(f"[AUTO-FLASH] ⚡ Memulai flashing otomatis untuk {current_port.device}...")
+        self.start_flashing(is_auto=True)
 
     def update_firmware_status(self):
         """Auto-binds official firmware binary and verifies target chip requirements."""
@@ -798,14 +899,14 @@ class DashboardView(QWidget):
         self.card_fail.set_value(str(stats["failed"]))
         self.card_rate.set_value(f"{stats['pass_rate']}%")
 
-    def start_flashing(self):
+    def start_flashing(self, is_auto: bool = False):
         """Initiates the flashing cycle with safety checks."""
         category = self.cmb_product.currentData()
         config = PRODUCT_CONFIGS.get(category, {})
 
         # Safety & Pre-flight verification dialog check
         require_safety = settings_manager.get("require_safety_acknowledgement", True)
-        if require_safety and config.get("requires_ac_isolation_warning", True):
+        if not is_auto and not self.chk_auto_flash.isChecked() and require_safety and config.get("requires_ac_isolation_warning", True):
             port_data: Optional[SerialPortInfo] = self.cmb_ports.currentData()
             port_name = port_data.device if port_data else ("MOCK_COM" if settings_manager.get("simulation_mode", False) else "COM?")
             target_chip = config.get("target_chip", "ESP32")
@@ -836,11 +937,20 @@ class DashboardView(QWidget):
             except Exception as ex:
                 self.terminal.append_line(f"[ERROR] Gagal membuka wizard verifikasi: {ex}")
                 return
+        elif (is_auto or self.chk_auto_flash.isChecked()) and config.get("requires_ac_isolation_warning", True):
+            activity_logger.log(
+                category=ActivityCategory.FLASHING,
+                action="SAFETY_AUTO_BYPASS",
+                details=f"Auto-Flash mode: AC safety pre-flight checklist auto-confirmed for {category}",
+                status=ActivityStatus.INFO
+            )
 
         port_data: Optional[SerialPortInfo] = self.cmb_ports.currentData()
         simulation_active = settings_manager.get("simulation_mode", False)
         
         port_name = port_data.device if port_data else "COM_SIM"
+        if port_data:
+            self._last_flashed_device = port_data.device
         baudrate = settings_manager.get("default_baudrate", 460800)
         verify_flash = settings_manager.get("verify_flash_write", True)
         erase_all = settings_manager.get("erase_before_flash", True)
@@ -858,6 +968,7 @@ class DashboardView(QWidget):
         self.cmb_product.setEnabled(False)
         self.cmb_ports.setEnabled(False)
         self.btn_refresh_ports.setEnabled(False)
+        self.chk_auto_flash.setEnabled(False)
 
         # Set UI status running
         self.lbl_status_badge.setText("FLASHING")
@@ -934,9 +1045,15 @@ class DashboardView(QWidget):
             self.lbl_status_badge.setProperty("class", "badge-pass")
             self.lbl_current_stage.setText("FLASHING SUCCESSFUL")
             self.lbl_current_stage.setStyleSheet("color: #34D399; font-size: 13.5px; font-weight: 800; letter-spacing: 0.3px;")
-            self.lbl_stage_desc.setText(
-                f"MAC: {record.mac_address or 'N/A'} • Chip: {record.target_chip} • {record.duration_seconds}s"
-            )
+            if self.chk_auto_flash.isChecked():
+                self.lbl_stage_desc.setText(
+                    f"PASS ({record.duration_seconds}s) • Cabut USB untuk unit berikutnya!"
+                )
+                self.terminal.append_line("[AUTO-FLASH] ✓ Flashing sukses! Cabut kabel USB dan colok unit berikutnya.")
+            else:
+                self.lbl_stage_desc.setText(
+                    f"MAC: {record.mac_address or 'N/A'} • Chip: {record.target_chip} • {record.duration_seconds}s"
+                )
             self.lbl_stage_desc.setToolTip(
                 f"Perangkat: {getattr(record, 'product_name', None) or getattr(record, 'product_category', 'Device')}\nMAC: {record.mac_address or 'N/A'}\nChip: {record.target_chip}\nWaktu: {record.duration_seconds}s\nStatus: Otomatis terdaftar ke Device Monitor"
             )
@@ -948,7 +1065,16 @@ class DashboardView(QWidget):
                 details=f"Device MAC: {record.mac_address or 'N/A'}, Product: {getattr(record, 'product_name', None) or getattr(record, 'product_category', 'Device')}, Chip: {record.target_chip}, Duration: {record.duration_seconds}s",
                 status=ActivityStatus.SUCCESS
             )
-
+            # Dispatch real-time production milestone telemetry to admin
+            telemetry_service.dispatch_production_telemetry(
+                product_name=record.product_name or "Alfa Energy Device",
+                mac_address=record.mac_address or "N/A",
+                target_chip=record.target_chip or "ESP32",
+                duration_seconds=record.duration_seconds or 0.0,
+                total_today=db_manager.get_today_passed_count(),
+                total_all_time=db_manager.get_total_passed_count(),
+                operator=auth_service.get_display_name()
+            )
         elif record.result == STATUS_CANCELLED:
             sound_service.play_warning()
             self.lbl_status_badge.setText("CANCEL")
@@ -979,6 +1105,8 @@ class DashboardView(QWidget):
             self.lbl_stage_desc.setText(f"Error: {first_line}{port_suffix}")
             self.lbl_stage_desc.setToolTip(raw_err)
             self.progress_bar.setFormat("FAIL")
+            if self.chk_auto_flash.isChecked():
+                self.terminal.append_line("[AUTO-FLASH] ✗ Flashing gagal! Periksa kabel/modul atau cabut untuk unit berikutnya.")
             activity_logger.log(
                 category=ActivityCategory.FLASHING,
                 action="FLASH_FAIL",
@@ -1011,5 +1139,6 @@ class DashboardView(QWidget):
         self.cmb_product.setEnabled(True)
         self.cmb_ports.setEnabled(True)
         self.btn_refresh_ports.setEnabled(True)
+        self.chk_auto_flash.setEnabled(True)
         self.worker = None
 

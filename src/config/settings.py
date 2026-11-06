@@ -23,6 +23,8 @@ DEFAULT_SETTINGS = {
     "chip_auto_detect": True,
     "custom_baudrate_enabled": False,
     "play_sound_on_completion": True,
+    "auto_flash_mode": False,
+    "auto_flash_warned": False,
 }
 
 class SettingsManager:

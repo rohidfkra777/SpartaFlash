@@ -3,7 +3,7 @@ SpartaFlash - Local User Activity Logging & Audit Service.
 Developer: Rohidfkra777
 
 Provides secure, private, 100% local activity logging for operator and station audits.
-Zero telemetry / zero data transmission to external servers.
+Zero telemetry / zero data transmission to external servers or developer.
 """
 
 import sqlite3
@@ -138,7 +138,10 @@ class ActivityLogService(QObject):
                             """, (now_str, username, role, category, action, details, status))
                             conn.commit()
                             event_dict["id"] = cursor.lastrowid
-                    self.sig_activity_logged.emit(event_dict)
+                    try:
+                        self.sig_activity_logged.emit(event_dict)
+                    except RuntimeError:
+                        pass
                 except Exception as ex:
                     logger.warning(f"Error persisting user activity: {ex}")
 
